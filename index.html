@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SimTX WebSDR</title>
+<title>WebSDR - rtl_tcp</title>
 <script src="config.js"></script>
 <style>
   body{background:#c0c0c0;color:#000;margin:3px;font:16px "Times New Roman",Times,serif}
@@ -105,12 +105,11 @@
 </div>
 
 <hr style="margin-top:14px">
-<div>This WebSDR is currently being used by 1 user(s) simultaneously: &nbsp; <label><input type="checkbox" id="cmp">compact view</label></div>
+<div>This WebSDR is currently being used by active users simultaneously: &nbsp; <label><input type="checkbox" id="cmp">compact view</label></div>
 <canvas id="ovw" width="1024" height="57" style="margin:12px 0 0 3px;max-width:100%"></canvas>
 <hr id="hr2" style="margin-top:14px">
-<div id="chat"><b>Chatbox:</b><br>
-  <span style="font-size:14px">This chatbox is intended to discuss the operation of the WebSDR.<br>
-  The operators of this site disclaim any responsibility for text appearing in this chatbox. (Messages are saved locally.)</span>
+<div id="chat"><b>Chatbox (Live & Shared):</b><br>
+  <span style="font-size:14px">Discuss the operation of the WebSDR with other connected listeners in real time.</span>
   <div id="chatlog"></div><input type="text" id="ci" style="width:400px" maxlength="200"></div>
 
 <script>
@@ -126,7 +125,37 @@ if(C.stationLocation)$("loc").textContent=C.stationLocation;if(C.operator)$("op"
 $("name").value="Anon"+(100000+Math.floor(Math.random()*899999));
 $("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
 
-// ---------- rtl_tcp with auto-reconnect
+// ---------- Persistent & Shared Chatbox Handler
+let chatMsgs = store("rtlchat") || [];
+const renderChat = () => {
+  const log = $("chatlog");
+  log.innerHTML = "";
+  chatMsgs.forEach(msg => {
+    const d = document.createElement("div");
+    d.textContent = msg;
+    log.appendChild(d);
+  });
+  log.scrollTop = log.scrollHeight;
+};
+renderChat();
+
+$("ci").onkeydown = e => {
+  if (e.key === "Enter" && $("ci").value) {
+    const txt = $("name").value + ": " + $("ci").value;
+    chatMsgs.push(txt);
+    store("rtlchat", chatMsgs);
+    renderChat();
+
+    // Broadcast chat message to other users via WebSocket
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'chat', text: txt }));
+    }
+
+    $("ci").value = "";
+  }
+};
+
+// ---------- rtl_tcp with auto-reconnect & chat listener
 const cmd=(c,v)=>{if(ws&&ws.readyState===1){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
 function hwFreq(){
   if(fc>=24e3){cmd(9,0);inv=false;cmd(1,Math.round(fc*1000))}
@@ -144,11 +173,30 @@ function connect(){
   const url=target();srv("connecting to cloud bridge ...");gotH=false;head=new Uint8Array(0);carry=-1;
   try{ws=new WebSocket(url)}catch(e){srv("bad address "+url,1);return}
   ws.binaryType="arraybuffer";
+  
   ws.onopen=()=>{manualClose=false;cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();$("conn").textContent="Disconnect"};
-  ws.onmessage=ev=>{let u=new Uint8Array(ev.data);
+  
+  ws.onmessage=ev=>{
+    // Check if incoming WebSocket message is a chat broadcast (string)
+    if(typeof ev.data === "string"){
+      try{
+        const data = JSON.parse(ev.data);
+        if(data.type === 'chat'){
+          chatMsgs.push(data.text);
+          store("rtlchat", chatMsgs);
+          renderChat();
+        }
+      }catch(err){}
+      return;
+    }
+
+    // Otherwise handle as binary SDR data stream
+    let u = new Uint8Array(ev.data);
     if(!gotH){const m=new Uint8Array(head.length+u.length);m.set(head);m.set(u,head.length);if(m.length<12){head=m;return}
       const ok=String.fromCharCode(...m.subarray(0,4))==="RTL0";srv("connected (streaming live)");gotH=true;u=m.subarray(ok?12:0)}
-    if(u.length)data(u)};
+    if(u.length)data(u);
+  };
+
   ws.onerror=()=>srv("Server / Bridge is DOWN. Retrying...",1);
   ws.onclose=()=>{$("conn").textContent="Connect";ws=null;
     if(!manualClose){
@@ -274,7 +322,7 @@ function ov(){const c=3e4,sp=c*1e3;ox.fillStyle="#000";ox.fillRect(0,0,1024,57);
   const x=(f-15e3)/c*1024+512;ox.fillStyle="#f90";ox.textAlign="center";ox.font="10px Arial";ox.fillText($("name").value,Math.max(30,Math.min(994,x)),9);
   ox.strokeStyle="#f90";ox.beginPath();ox.moveTo(x+.5,10);ox.lineTo(x+.5,18);ox.stroke()}
 
-// ---------- S-meter (recalibrated for proper linear S1-S9 spacing)
+// ---------- S-meter
 const sm=$("sm").getContext("2d"),pl=$("pl").getContext("2d"),hist=[];
 const K=[[-108,.05],[-102,.10],[-96,.15],[-90,.20],[-84,.25],[-78,.30],[-72,.35],[-66,.40],[-60,.45],[-40,.62],[-20,.78],[0,.95]];
 function frac(d){if(d<=K[0][0])return Math.max(0,K[0][1]+(d-K[0][0])*.005);for(let i=1;i<K.length;i++)if(d<=K[i][0])return K[i-1][1]+(K[i][1]-K[i-1][1])*(d-K[i-1][0])/(K[i][0]-K[i-1][0]);return Math.min(1,.95+(d/100)*.05)}
@@ -327,36 +375,11 @@ $("store").onclick=()=>{const m={f,m:mode,b:bw},i=+$("mem").value;if(i<0){mems.p
 $("recall").onclick=()=>{const m=mems[+$("mem").value];if(m){mode=m.m;bw=m.b;active();setF(m.f)}};
 $("erase").onclick=()=>{mems.splice(+$("mem").value,1);store("rtlmem",mems);$("mem").value=-1;memUI()};
 
-// logbook / chat / recording
+// logbook / recording
 let lg=store("rtllog")||[];
 $("ls").onclick=()=>{if(!$("lc").value&&!$("lm").value)return;lg.push(`${new Date().toISOString().slice(0,19)} ${f.toFixed(2)} kHz ${mode} ${$("name").value}: ${$("lc").value} ${$("lm").value}`);store("rtllog",lg);$("lc").value=$("lm").value=""};
 $("l20").onclick=e=>{e.preventDefault();alert(lg.slice(-20).join("\n")||"(logbook is empty)")};
 $("lall").onclick=e=>{e.preventDefault();alert(lg.join("\n")||"(logbook is empty)")};
-
-// ---------- Persistent Chatbox Handler
-let chatMsgs = store("rtlchat") || [];
-const renderChat = () => {
-  const log = $("chatlog");
-  log.innerHTML = "";
-  chatMsgs.forEach(msg => {
-    const d = document.createElement("div");
-    d.textContent = msg;
-    log.appendChild(d);
-  });
-  log.scrollTop = log.scrollHeight;
-};
-renderChat();
-
-$("ci").onkeydown = e => {
-  if (e.key === "Enter" && $("ci").value) {
-    const txt = $("name").value + ": " + $("ci").value;
-    chatMsgs.push(txt);
-    store("rtlchat", chatMsgs);
-    renderChat();
-    $("ci").value = "";
-  }
-};
-
 $("cmp").onchange=()=>{const h=$("cmp").checked;for(const i of["log","ovw","hr2","chat"])$(i).style.display=h?"none":""};
 
 // ---------- WAV recording
