@@ -1,7 +1,6 @@
 const WebSocket = require('ws');
 const net = require('net');
 
-// Fly.io automatically assigns a PORT via environment variables (defaults to 6080 locally)
 const PORT = process.env.PORT || 6080;
 const RTL_HOST = '193.24.208.6';
 const RTL_PORT = 1240;
@@ -17,14 +16,27 @@ wss.on('connection', (ws) => {
     console.log(`Connected to rtl_tcp at ${RTL_HOST}:${RTL_PORT}`);
   });
 
+  // Forward raw RTL TCP data to this specific client
   tcpSocket.on('data', (data) => {
     if (ws.readyState === WebSocket.OPEN) {
       ws.send(data);
     }
   });
 
+  // Handle incoming messages from the client (SDR commands or Chat broadcasts)
   ws.on('message', (message) => {
-    tcpSocket.write(message);
+    // Check if it's a chat message (string / JSON)
+    if (typeof message === 'string' || isJsonString(message)) {
+      // Broadcast chat to all OTHER connected clients
+      wss.clients.forEach((client) => {
+        if (client !== ws && client.readyState === WebSocket.OPEN) {
+          client.send(message);
+        }
+      });
+    } else {
+      // Binary SDR command data -> forward to TCP
+      tcpSocket.write(message);
+    }
   });
 
   tcpSocket.on('close', () => {
@@ -47,3 +59,12 @@ wss.on('connection', (ws) => {
     tcpSocket.destroy();
   });
 });
+
+function isJsonString(str) {
+  try {
+    const parsed = JSON.parse(str);
+    return typeof parsed === 'object' && parsed !== null;
+  } catch (e) {
+    return false;
+  }
+}
