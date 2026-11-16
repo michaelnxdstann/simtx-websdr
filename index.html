@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>WebSDR - rtl_tcp</title>
+<title>SimTX WebSDR</title>
 <script src="config.js"></script>
 <style>
   body{background:#c0c0c0;color:#000;margin:3px;font:16px "Times New Roman",Times,serif}
@@ -23,7 +23,7 @@
   .java{color:#d00}.html5{color:#080}
   #srv{font:13px Arial;margin-left:8px}
   #srv.err{color:#b00}
-  #chatlog{font-size:14px;min-height:20px}
+  #chatlog{font-size:14px;max-height:120px;overflow-y:auto;margin:4px 0;background:#f8f8f8;border:1px inset #808080;padding:3px}
 </style>
 </head>
 <body>
@@ -110,7 +110,7 @@
 <hr id="hr2" style="margin-top:14px">
 <div id="chat"><b>Chatbox:</b><br>
   <span style="font-size:14px">This chatbox is intended to discuss the operation of the WebSDR.<br>
-  The operators of this site disclaim any responsibility for text appearing in this chatbox. (Messages here are local only.)</span>
+  The operators of this site disclaim any responsibility for text appearing in this chatbox. (Messages are saved locally.)</span>
   <div id="chatlog"></div><input type="text" id="ci" style="width:400px" maxlength="200"></div>
 
 <script>
@@ -126,7 +126,7 @@ if(C.stationLocation)$("loc").textContent=C.stationLocation;if(C.operator)$("op"
 $("name").value="Anon"+(100000+Math.floor(Math.random()*899999));
 $("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
 
-// ---------- rtl_tcp
+// ---------- rtl_tcp with auto-reconnect
 const cmd=(c,v)=>{if(ws&&ws.readyState===1){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
 function hwFreq(){
   if(fc>=24e3){cmd(9,0);inv=false;cmd(1,Math.round(fc*1000))}
@@ -135,19 +135,41 @@ function hwFreq(){
 }
 function hwGain(){const g=$("rf").value;if(g==="auto"){cmd(3,0);cmd(8,1)}else{cmd(8,0);cmd(3,1);cmd(4,Math.round(g*10))}}
 function srv(t,e){$("srv").textContent=t;$("srv").className=e?"err":""}
+
+let manualClose = false;
+let reconnectTimer = null;
+
 function connect(){
+  if(reconnectTimer) clearTimeout(reconnectTimer);
   const url=target();srv("connecting to cloud bridge ...");gotH=false;head=new Uint8Array(0);carry=-1;
   try{ws=new WebSocket(url)}catch(e){srv("bad address "+url,1);return}
   ws.binaryType="arraybuffer";
-  ws.onopen=()=>{cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();$("conn").textContent="Disconnect"};
+  ws.onopen=()=>{manualClose=false;cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();$("conn").textContent="Disconnect"};
   ws.onmessage=ev=>{let u=new Uint8Array(ev.data);
     if(!gotH){const m=new Uint8Array(head.length+u.length);m.set(head);m.set(u,head.length);if(m.length<12){head=m;return}
       const ok=String.fromCharCode(...m.subarray(0,4))==="RTL0";srv("connected (streaming live)");gotH=true;u=m.subarray(ok?12:0)}
     if(u.length)data(u)};
-  ws.onerror=()=>srv("Server / Bridge is DOWN. Please check back later.",1);
-  ws.onclose=()=>{$("conn").textContent="Connect";if(!$("srv").className)srv("Server offline: bridge is down.");ws=null};
+  ws.onerror=()=>srv("Server / Bridge is DOWN. Retrying...",1);
+  ws.onclose=()=>{$("conn").textContent="Connect";ws=null;
+    if(!manualClose){
+      srv("disconnected - reconnecting in 3s...",1);
+      reconnectTimer=setTimeout(connect,3000);
+    }else{
+      srv("disconnected");
+    }
+  };
 }
-$("conn").onclick=()=>ws?ws.close():connect();
+
+$("conn").onclick=()=>{
+  if(ws){
+    manualClose=true;
+    if(reconnectTimer) clearTimeout(reconnectTimer);
+    ws.close();
+  }else{
+    manualClose=false;
+    connect();
+  }
+};
 $("rf").onchange=hwGain;
 
 // ---------- audio
@@ -251,9 +273,11 @@ const oc=$("ovw"),ox=oc.getContext("2d");
 function ov(){const c=3e4,sp=c*1e3;ox.fillStyle="#000";ox.fillRect(0,0,1024,57);axis(ox,12,15e3,sp,32);
   const x=(f-15e3)/c*1024+512;ox.fillStyle="#f90";ox.textAlign="center";ox.font="10px Arial";ox.fillText($("name").value,Math.max(30,Math.min(994,x)),9);
   ox.strokeStyle="#f90";ox.beginPath();ox.moveTo(x+.5,10);ox.lineTo(x+.5,18);ox.stroke()}
+
+// ---------- S-meter (recalibrated for proper linear S1-S9 spacing)
 const sm=$("sm").getContext("2d"),pl=$("pl").getContext("2d"),hist=[];
-const K=[[-108,.04],[-60,.4],[-40,.54],[-20,.72],[0,.87]];
-function frac(d){if(d<=K[0][0])return Math.max(0,.04+(d-K[0][0])*.005);for(let i=1;i<K.length;i++)if(d<=K[i][0])return K[i-1][1]+(K[i][1]-K[i-1][1])*(d-K[i-1][0])/(K[i][0]-K[i-1][0]);return Math.min(1,.87+(d/100)*.1)}
+const K=[[-108,.05],[-102,.10],[-96,.15],[-90,.20],[-84,.25],[-78,.30],[-72,.35],[-66,.40],[-60,.45],[-40,.62],[-20,.78],[0,.95]];
+function frac(d){if(d<=K[0][0])return Math.max(0,K[0][1]+(d-K[0][0])*.005);for(let i=1;i<K.length;i++)if(d<=K[i][0])return K[i-1][1]+(K[i][1]-K[i-1][1])*(d-K[i-1][0])/(K[i][0]-K[i-1][0]);return Math.min(1,.95+(d/100)*.05)}
 function meter(){const now=performance.now();if(now-(meter.t||0)<60)return;meter.t=now;
   sm.fillStyle="#000";sm.fillRect(0,0,250,72);sm.fillStyle="#0f0";sm.fillRect(0,36,frac(db)*250,5);
   sm.font="7px Arial";sm.textAlign="left";[["S1",-108],["S3",-96],["S5",-84],["S7",-72],["S9",-60],["+20dB",-40],["+40dB",-20],["+60dB",0]].forEach(([t,d])=>sm.fillText(t,frac(d)*250-4,66));
@@ -302,13 +326,39 @@ $("mem").onchange=memUI;
 $("store").onclick=()=>{const m={f,m:mode,b:bw},i=+$("mem").value;if(i<0){mems.push(m);store("rtlmem",mems);memUI();$("mem").value=mems.length-1}else{mems[i]=m;store("rtlmem",mems)}memUI()};
 $("recall").onclick=()=>{const m=mems[+$("mem").value];if(m){mode=m.m;bw=m.b;active();setF(m.f)}};
 $("erase").onclick=()=>{mems.splice(+$("mem").value,1);store("rtlmem",mems);$("mem").value=-1;memUI()};
+
 // logbook / chat / recording
 let lg=store("rtllog")||[];
 $("ls").onclick=()=>{if(!$("lc").value&&!$("lm").value)return;lg.push(`${new Date().toISOString().slice(0,19)} ${f.toFixed(2)} kHz ${mode} ${$("name").value}: ${$("lc").value} ${$("lm").value}`);store("rtllog",lg);$("lc").value=$("lm").value=""};
 $("l20").onclick=e=>{e.preventDefault();alert(lg.slice(-20).join("\n")||"(logbook is empty)")};
 $("lall").onclick=e=>{e.preventDefault();alert(lg.join("\n")||"(logbook is empty)")};
-$("ci").onkeydown=e=>{if(e.key==="Enter"&&$("ci").value){const d=document.createElement("div");d.textContent=$("name").value+": "+$("ci").value;$("chatlog").appendChild(d);$("ci").value=""}};
+
+// ---------- Persistent Chatbox Handler
+let chatMsgs = store("rtlchat") || [];
+const renderChat = () => {
+  const log = $("chatlog");
+  log.innerHTML = "";
+  chatMsgs.forEach(msg => {
+    const d = document.createElement("div");
+    d.textContent = msg;
+    log.appendChild(d);
+  });
+  log.scrollTop = log.scrollHeight;
+};
+renderChat();
+
+$("ci").onkeydown = e => {
+  if (e.key === "Enter" && $("ci").value) {
+    const txt = $("name").value + ": " + $("ci").value;
+    chatMsgs.push(txt);
+    store("rtlchat", chatMsgs);
+    renderChat();
+    $("ci").value = "";
+  }
+};
+
 $("cmp").onchange=()=>{const h=$("cmp").checked;for(const i of["log","ovw","hr2","chat"])$(i).style.display=h?"none":""};
+
 // ---------- WAV recording
 let rec=false,recC=[],recN=0,recName="",recTimer=0;
 const RATE=SR/25,pad=n=>String(n).padStart(2,"0");
