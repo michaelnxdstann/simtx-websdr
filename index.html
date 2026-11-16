@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WebSDR - rtl_tcp</title>
+<script src="config.js"></script>
+<style>
+  body{background:#c0c0c0;color:#000;margin:3px;font:16px "Times New Roman",Times,serif}
+  button,select,input{font:13.333px Arial,Helvetica,sans-serif}
+  input[type=text],input[type=number]{font-size:13.333px}
+  button.on{background:#d8d8d8;border-style:inset}
+  .b{background:#fff;padding:5px;display:inline-block;vertical-align:top}
+  .row{display:flex;gap:8px;align-items:flex-start;margin:22px 0 0 5px;flex-wrap:wrap}
+  .top{display:flex;justify-content:space-between;align-items:flex-start;margin:11px 5px 0 5px}
+  .top .b{margin-right:4px}
+  hr{border:0;border-top:1px solid #a0a0a0;border-bottom:1px solid #e8e8e8;margin:8px 0}
+  canvas{display:block;background:#000}
+  #main{cursor:crosshair;max-width:100%}
+  small{font-size:10px;display:block;margin-top:3px}
+  .grid{display:grid;grid-template-columns:74px 87px 73px 71px 67px 76px 40px;gap:3px 0;margin-top:5px}
+  .grid button{justify-self:start}
+  #astart{background:#000;color:#fff;border:1px solid #555;border-radius:3px;padding:3px 8px;font:14px Arial,sans-serif;cursor:pointer}
+  .java{color:#d00}.html5{color:#080}
+  #srv{font:13px Arial;margin-left:8px}
+  #srv.err{color:#b00}
+  #chatlog{font-size:14px;min-height:20px}
+</style>
+</head>
+<body>
+<div id="ap" style="position:fixed;inset:0;z-index:1000;background:rgba(120,120,120,.55);cursor:pointer">
+  <div style="position:absolute;left:50px;top:62px;background:#c0c0c0;color:#000;border:1px solid #808080;padding:8px 20px;cursor:default">Click here to start audio: <button id="astart">start audio</button></div></div>
+<div id="infow" style="padding-bottom:10px"><p id="info" style="margin:6px 3px 0">This is a WebSDR receiver, located in <span id="loc">Budapest, Hungary</span>. It is operated by <span id="op">michaelnxdstan</span>.
+  More information about the WebSDR project can be found on <a href="http://websdr.org/" target="_blank" rel="noopener">http://websdr.org/</a>.</p></div>
+<hr>
+<div style="margin:4px 0 0 2px">Your name or callsign: <input type="text" id="name" size="25" maxlength="24">
+  <span id="srv">not connected</span> <button id="conn">Connect</button>
+  RF gain <select id="rf"><option value="auto">auto</option><option>20</option><option>30</option><option>40</option></select>
+</div>
+<hr>
+<div class="top">
+  <div><span class="b"><b>View:</b>
+      <label><input type="radio" name="v" id="vw" checked>waterfall</label>
+      <label><input type="radio" name="v" id="vb">blind</label></span>
+    <span class="b"><b>Allow keyboard:</b> <input type="checkbox" id="kb"></span></div>
+  <div class="b"><b>Waterfall:</b>
+    <label class="java"><input type="radio" name="wj" disabled>Java</label>
+    <label class="html5"><input type="radio" name="wj" checked>HTML5</label>
+    &nbsp;<b>Sound:</b>
+    <label class="java"><input type="radio" name="sj" disabled>Java</label>
+    <label class="html5"><input type="radio" name="sj" checked>HTML5</label></div>
+</div>
+<canvas id="main" width="1024" height="174" style="margin:7px 0 0 3px"></canvas>
+
+<div class="row">
+  <div class="b" style="width:498px">
+    <b>Frequency:</b> <input type="text" id="freq" size="12" style="width:105px"> kHz <span style="font-size:12px">(0 - 30 MHz)</span>
+    <div style="margin-top:5px"><button data-d="-3">---</button> <button data-d="-2">--</button> <button data-d="-1">-</button>
+      <button data-d="1">+</button> <button data-d="2">++</button> <button data-d="3">+++</button></div>
+    <small>Or tune by clicking/dragging on the frequency scale.</small>
+    <hr>
+    <b>Bandwidth:</b><br><span id="bwtxt"></span>
+    <div class="grid" id="bwg">
+      <button data-w="1">wider</button><button data-m="cw" data-b="800">CW-wide</button><button data-m="lsb" data-b="2700">LSB</button>
+      <button data-m="usb" data-b="2700">USB</button><button data-m="am" data-b="9000">AM</button>
+      <button data-m="amsync" data-b="9000">AMSYNC</button><button data-m="fm" data-b="15000">FM</button>
+      <button data-w="-1">narrower</button><button data-m="cw" data-b="250">CW-narrow</button><button data-m="lsb" data-b="1800">LSB-nrw</button>
+      <button data-m="usb" data-b="1800">USB-nrw</button><button data-m="am" data-b="4500">AM-nrw</button>
+    </div>
+    <small style="margin-top:8px">Or drag the passband edges on the frequency scale.</small>
+    <hr><b>Memories:</b>
+    <div style="margin-top:6px"><button id="recall" disabled>recall</button><button id="erase" disabled>erase</button>
+      <button id="store">store</button> <select id="mem"><option value="-1">(new)</option></select></div>
+  </div>
+
+  <div class="b" style="width:200px">
+    <b>Waterfall view:</b>
+    <div style="margin-top:6px"><button id="zo">zoom out</button> <button id="zi">zoom in</button></div>
+    <div style="margin-top:4px"><button id="mo">max out</button> <button id="mi">max in</button></div>
+    <small>Click to tune, drag to pan, scroll wheel to zoom.</small>
+    <div style="margin-top:6px">Speed: <select id="spd"><option value="250">slow</option><option value="100" selected>medium</option><option value="40">fast</option></select></div>
+    <div>Size: <select id="siz"><option value="60">small</option><option value="100" selected>medium</option><option value="160">large</option></select></div>
+    <div>View: <select id="vws"><option>waterfall</option><option>spectrum</option></select></div>
+  </div>
+
+  <div class="b" style="width:250px">
+    <canvas id="sm" width="250" height="72"></canvas>
+    <div id="smt" style="margin:2px 0 0 8px">&nbsp;</div>
+    <label><input type="checkbox" id="mute">mute</label>
+    <label><input type="checkbox" id="sq">squelch</label>
+    <label><input type="checkbox" id="an">autonotch</label>
+    <div>Volume: <input type="range" id="vol" min="0" max="1" step="0.01" style="width:130px;vertical-align:middle"></div>
+    <hr><b>Audio recording:</b> <button id="rec">start</button>
+    <div id="recinfo" style="font-size:13px;margin-top:4px;word-break:break-all"></div>
+    <hr><b>Signal strength plot:</b> <select id="plot"><option>none</option><option>slow</option><option>fast</option></select>
+    <canvas id="pl" width="250" height="40" style="display:none;margin-top:4px"></canvas>
+  </div>
+
+  <div class="b" id="log" style="width:468px">
+    <b>Logbook:</b>
+    <div style="margin-top:6px">Call of station that you hear: <input type="text" id="lc" size="14"></div>
+    <div style="margin-top:6px">Comments, if any: <input type="text" id="lm" style="width:240px"> <button id="ls">submit</button></div>
+    <small style="font-size:12px;margin-top:6px">Note: time, frequency, your name/call, and receiver information are added automatically.</small>
+    <small style="font-size:12px">View the <a href="#" id="l20">last 20 lines of the logbook</a>, or the <a href="#" id="lall">entire logbook</a>.</small>
+  </div>
+</div>
+
+<hr style="margin-top:14px">
+<div>This WebSDR is currently being used by 1 user(s) simultaneously: &nbsp; <label><input type="checkbox" id="cmp">compact view</label></div>
+<canvas id="ovw" width="1024" height="57" style="margin:12px 0 0 3px;max-width:100%"></canvas>
+<hr id="hr2" style="margin-top:14px">
+<div id="chat"><b>Chatbox:</b><br>
+  <span style="font-size:14px">This chatbox is intended to discuss the operation of the WebSDR.<br>
+  The operators of this site disclaim any responsibility for text appearing in this chatbox. (Messages here are local only.)</span>
+  <div id="chatlog"></div><input type="text" id="ci" style="width:400px" maxlength="200"></div>
+
+<script>
+(() => {
+const D={rtlTcp:{host:"127.0.0.1",port:1234},wsUrl:"",frequencyMHz:10.1,mode:"am",sampleRate:1200000,gainMode:"auto",gainDb:30,ppm:0,volume:.7,deemphasisUs:50,autoConnect:true};
+const C=Object.assign({},D,window.RTL_CONFIG||{}),$=i=>document.getElementById(i),SR=C.sampleRate,PI=Math.PI;
+const target=()=>C.wsUrl||`ws://${C.rtlTcp.host}:${C.rtlTcp.port}`;
+let f=Math.max(0,Math.min(3e4,C.frequencyMHz*1000)),fc=f,inv=false,vcs=f,mode=C.mode==="am"?"am":"fm",bw=C.mode==="wfm"?2e5:C.mode==="nfm"?15000:9000,zoom=0;
+let ws=null,gotH=false,head=new Uint8Array(0),carry=-1,actx=null,gn=null,nextT=0,wfH=100,db=-120,peak=-120,flo=-60,mm=0,lastT=0,lastRow=null;
+const st=()=>mode==="fm"?(bw>=1e5?[50,100,1000]:[5,12.5,100]):mode==="am"||mode==="amsync"?[1,9,100]:[.1,1,10];
+const store=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}};
+if(C.stationLocation)$("loc").textContent=C.stationLocation;if(C.operator)$("op").textContent=C.operator;
+$("name").value="Anon"+(100000+Math.floor(Math.random()*899999));
+$("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
+
+// ---------- rtl_tcp
+const cmd=(c,v)=>{if(ws&&ws.readyState===1){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
+function hwFreq(){ // 0-30 MHz: direct sampling (Q branch) below 24 MHz, tuner above
+  if(fc>=24e3){cmd(9,0);inv=false;cmd(1,Math.round(fc*1000))}
+  else if(fc<=14.4e3){cmd(9,2);inv=false;cmd(1,Math.round(fc*1000))}
+  else{cmd(9,2);inv=true;cmd(1,Math.round((28.8e3-fc)*1000))} // aliased image, spectrum mirrored
+}
+function hwGain(){const g=$("rf").value;if(g==="auto"){cmd(3,0);cmd(8,1)}else{cmd(8,0);cmd(3,1);cmd(4,Math.round(g*10))}}
+function srv(t,e){$("srv").textContent=t;$("srv").className=e?"err":""}
+function connect(){
+  const url=target();srv("connecting to "+url+" ...");gotH=false;head=new Uint8Array(0);carry=-1;
+  try{ws=new WebSocket(url)}catch(e){srv("bad address "+url,1);return}
+  ws.binaryType="arraybuffer";
+  ws.onopen=()=>{cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();$("conn").textContent="Disconnect"};
+  ws.onmessage=ev=>{let u=new Uint8Array(ev.data);
+    if(!gotH){const m=new Uint8Array(head.length+u.length);m.set(head);m.set(u,head.length);if(m.length<12){head=m;return}
+      const ok=String.fromCharCode(...m.subarray(0,4))==="RTL0";srv("receiving from "+C.rtlTcp.host+":"+C.rtlTcp.port);gotH=true;u=m.subarray(ok?12:0)}
+    if(u.length)data(u)};
+  ws.onerror=()=>srv("connection failed - is the bridge running at "+url+"?",1);
+  ws.onclose=()=>{$("conn").textContent="Connect";if(!$("srv").className)srv("disconnected");ws=null};
+}
+$("conn").onclick=()=>ws?ws.close():connect();
+$("rf").onchange=hwGain;
+
+// ---------- audio
+function initAudio(){if(actx){actx.resume();return}
+  actx=new(window.AudioContext||window.webkitAudioContext)();gn=actx.createGain();gn.connect(actx.destination);setVol()}
+const setVol=()=>{if(gn)gn.gain.value=$("mute").checked?0:+$("vol").value};
+function play(a,rate){if(!actx||!a.length)return;const t=actx.currentTime;if(nextT<t+.02)nextT=t+.08;if(nextT>t+.7)return;
+  const b=actx.createBuffer(1,a.length,rate);b.copyToChannel(a,0);const s=actx.createBufferSource();s.buffer=b;s.connect(gn);s.start(nextT);nextT+=b.duration}
+const startAudio=()=>{initAudio();if(!ws)connect();$("ap").style.display="none"};
+$("ap").onclick=startAudio;
+$("vol").oninput=setVol;$("mute").onchange=setVol;
+
+// ---------- demodulator
+let pr=1,pi=0,a1r=0,a1i=0,c1=0,a2r=0,a2i=0,c2=0,a3=0,c3=0,ppr=0,ppi=0,deY=0,dc=0,cr=0,ci=0,ag=0;
+const p1=[1,0],p2=[1,0],lr=[0,0,0,0],li=[0,0,0,0],NT=32,DL=8,hh=new Float32Array(NT+DL+1),nw=new Float32Array(NT);
+function notch(v){hh.copyWithin(1,0);hh[0]=v;let y=0,p=1e-6;for(let i=0;i<NT;i++){y+=nw[i]*hh[i+DL];p+=hh[i+DL]*hh[i+DL]}
+  const e=v-y,g=.01*e/p;for(let i=0;i<NT;i++)nw[i]+=g*hh[i+DL];return e}
+function demod(u8){
+  const n=u8.length>>1,w=-2*PI*(f-fc)*1000/SR,wr=Math.cos(w),wi=Math.sin(w),wide=mode==="fm"&&bw>=1e5;
+  const out=new Float32Array((n/25|0)+3),la=1-Math.exp(-PI*bw/48000),sh=PI*bw/48000,an=$("an").checked;
+  const s1=mode==="usb"?-sh:mode==="lsb"?sh:0,s2=mode==="usb"?sh:mode==="lsb"?-sh:2*PI*700/48000;
+  const q1r=Math.cos(s1),q1i=Math.sin(s1),q2r=Math.cos(s2),q2i=Math.sin(s2),al=1-Math.exp(-1/(SR/25*C.deemphasisUs*1e-6));
+  let o=0,pw=0,pn=0,t;
+  for(let k=0;k<n;k++){
+    const x=(u8[2*k]-127.5)/127.5,y=(u8[2*k+1]-127.5)/127.5;
+    a1r+=x*pr-y*pi;a1i+=x*pi+y*pr;t=pr*wr-pi*wi;pi=pr*wi+pi*wr;pr=t;
+    if(++c1<5)continue;let sr=a1r/5,si=a1i/5;a1r=a1i=c1=0;let v;
+    if(wide){
+      v=Math.atan2(si*ppr-sr*ppi,sr*ppr+si*ppi)/PI*1.6;ppr=sr;ppi=si;pw+=sr*sr+si*si;pn++;
+      a3+=v;if(++c3<5)continue;v=a3/5;a3=c3=0;deY+=al*(v-deY);out[o++]=Math.max(-1,Math.min(1,deY));continue}
+    a2r+=sr;a2i+=si;if(++c2<5)continue;sr=a2r/5;si=a2i/5;a2r=a2i=c2=0;
+    if(s1){t=sr*p1[0]-si*p1[1];si=sr*p1[1]+si*p1[0];sr=t;t=p1[0]*q1r-p1[1]*q1i;p1[1]=p1[0]*q1i+p1[1]*q1r;p1[0]=t}
+    for(let j=0;j<4;j++){lr[j]+=la*(sr-lr[j]);li[j]+=la*(si-li[j]);sr=lr[j];si=li[j]}
+    pw+=sr*sr+si*si;pn++;
+    if(mode==="am"){const m=Math.hypot(sr,si);dc+=.001*(m-dc);v=m-dc}
+    else if(mode==="amsync"){cr+=.0005*(sr-cr);ci+=.0005*(si-ci);v=(sr*cr+si*ci)/(Math.hypot(cr,ci)+1e-6);dc+=.001*(v-dc);v-=dc}
+    else if(mode==="fm"){v=Math.atan2(si*ppr-sr*ppi,sr*ppr+si*ppi)/PI*4;ppr=sr;ppi=si}
+    else{v=sr*p2[0]-si*p2[1];t=p2[0]*q2r-p2[1]*q2i;p2[1]=p2[0]*q2i+p2[1]*q2r;p2[0]=t}
+    if(mode!=="fm"){const e=Math.abs(v);ag+=(e>ag?.01:.0002)*(e-ag);v*=Math.min(40,.3/(ag+1e-3))}
+    if(an)v=notch(v);
+    out[o++]=Math.max(-1,Math.min(1,v));
+  }
+  for(const p of[p1,p2,[pr,pi]]){const m=Math.hypot(p[0],p[1])||1;p[0]/=m;p[1]/=m}
+  {const m=Math.hypot(pr,pi)||1;pr/=m;pi/=m}
+  db=10*Math.log10((pw/(pn||1))+1e-12);peak=Math.max(db,peak-.3);flo=Math.min(db,flo+.02);
+  if($("sq").checked&&db<flo+8)out.fill(0);
+  if(rec){const q=new Int16Array(o);for(let i=0;i<o;i++)q[i]=Math.max(-1,Math.min(1,out[i]))*32767;recC.push(q);recN+=o}
+  play(out.subarray(0,o),SR/25);
+}
+
+// ---------- FFT / waterfall
+const N=16384,re=new Float32Array(N),im=new Float32Array(N),win=new Float32Array(N),rev=new Uint16Array(N),ct=new Float32Array(N/2),sn=new Float32Array(N/2);
+for(let i=0;i<N;i++){win[i]=.5-.5*Math.cos(2*PI*i/(N-1));let r=0;for(let b=0;b<14;b++)if(i&(1<<b))r|=1<<(13-b);rev[i]=r}
+for(let i=0;i<N/2;i++){ct[i]=Math.cos(-2*PI*i/N);sn[i]=Math.sin(-2*PI*i/N)}
+function fft(){for(let i=0;i<N;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+  for(let len=2;len<=N;len<<=1){const h=len>>1,step=N/len;for(let s=0;s<N;s+=len)for(let k=0;k<h;k++){const a=s+k,b=a+h,wr=ct[k*step],wi=sn[k*step],
+    tr=re[b]*wr-im[b]*wi,ti=re[b]*wi+im[b]*wr;re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti}}}
+const mc=$("main"),mx=mc.getContext("2d"),wc=document.createElement("canvas"),wx=wc.getContext("2d");wc.width=1024;wc.height=wfH;
+const row=wx.createImageData(1024,1),stops=[[0,0,0],[60,0,130],[150,0,220],[255,80,255],[255,255,255]];
+function col(t){t=Math.max(0,Math.min(.9999,t))*4;const i=t|0,u=t-i,a=stops[i],b=stops[i+1];return[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u]}
+const span=()=>SR/Math.pow(2,zoom);
+function viewC(){if(!zoom)return fc;const h=(SR-span())/2e3;return Math.max(fc-h,Math.min(fc+h,vcs))}
+const sb=new Uint8Array(2*N);let sbn=0; // collects chunks until a full FFT block is available
+function spectrum(u8){if(sbn<2*N){const c=Math.min(u8.length,2*N-sbn);sb.set(u8.subarray(0,c),sbn);sbn+=c}
+  if(sbn<2*N)return;sbn=0;const now=performance.now();if(now-lastT<+$("spd").value)return;lastT=now;
+  for(let i=0;i<N;i++){re[i]=(sb[2*i]-127.5)/127.5*win[i];im[i]=(sb[2*i+1]-127.5)/127.5*win[i]}
+  fft();const d=new Float32Array(N);let m=0;
+  for(let k=0;k<N;k++){const s=(k+N/2)%N;d[k]=10*Math.log10((re[s]*re[s]+im[s]*im[s])/N+1e-12);m+=d[k]}
+  mm+=.1*(m/N-mm);const vc=viewC(),sp=span(),bpp=sp/1024/SR*N;lastRow=new Float32Array(1024);
+  for(let x=0;x<1024;x++){const c=((vc-fc)*1000+(x/1024-.5)*sp)/SR*N+N/2,a=Math.max(0,Math.floor(c-bpp/2)),b=Math.min(N-1,Math.max(a,Math.ceil(c+bpp/2)));
+    let v=-200;if(c>=0&&c<N)for(let k=a;k<=b;k++)if(d[k]>v)v=d[k];lastRow[x]=v;
+    const q=col((v-mm+12)/55);row.data[4*x]=q[0];row.data[4*x+1]=q[1];row.data[4*x+2]=q[2];row.data[4*x+3]=255}
+  wx.drawImage(wc,0,-1);wx.putImageData(row,0,wfH-1);render()}
+function data(u){if(inv)for(let i=1;i<u.length;i+=2)u[i]=255-u[i];
+  if(carry>=0){const m=new Uint8Array(u.length+1);m[0]=carry;m.set(u,1);u=m;carry=-1}
+  if(u.length&1){carry=u[u.length-1];u=u.subarray(0,u.length-1)}spectrum(u);demod(u);meter()}
+
+// ---------- drawing
+const BANDS=[[531,1602,"MW broadcast",1],[1810,2000,"160m amateurs",0],[2300,2495,"120m broadcast",1],[3200,3400,"90m broadcast",1],[3500,3800,"80m amateurs",0],
+[3900,4000,"75m broadcast",1],[4750,5060,"60m broadcast",1],[5900,6200,"49m broadcast",1],[7000,7200,"40m amateurs",0],[7200,7450,"41m broadcast",1],[9400,9900,"31m broadcast",1],
+[10100,10150,"30m licensed amateurs",0],[11600,12100,"25m broadcast",1],[13570,13870,"22m broadcast",1],[14000,14350,"20m amateurs",0],[15100,15800,"19m broadcast",1],
+[17480,17900,"16m broadcast",1],[18068,18168,"17m amateurs",0],[21000,21450,"15m amateurs",0],[21450,21850,"13m broadcast",1],[24890,24990,"12m amateurs",0],[26965,27405,"CB 11m",2],[28000,29700,"10m amateurs",0]];
+const BC=["#2c2","#c3c","#39f"];
+function axis(c,y,vc,sp,h){c.font="10px 'Courier New',monospace";c.textBaseline="alphabetic";const k=sp/1e3,st=[.1,.2,.5,1,2,5,10,20,50,100,200,500,1000,2000].find(s=>s/k*1024>=64)||2000;
+  c.fillStyle=c.strokeStyle="#fff";c.textAlign="center";c.lineWidth=1;const lo=vc-k/2;
+  for(let v=Math.ceil(lo/st)*st;v<vc+k/2;v+=st){const x=Math.round((v-vc)/k*1024+512)+.5;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.fillText(st<1?v.toFixed(1):Math.round(v),x,y+14)}
+  c.textAlign="center";for(const[a,b,l,t]of BANDS){if(b<lo||a>vc+k/2)continue;const x0=Math.max(0,(a-vc)/k*1024+512),x1=Math.min(1024,(b-vc)/k*1024+512);
+    c.strokeStyle=c.fillStyle=BC[t];c.beginPath();c.moveTo(x0,y+h);c.lineTo(x1,y+h);c.stroke();c.font="9px 'Courier New',monospace";c.fillText(l,(x0+x1)/2,y+h+10)}}
+function pb(){const hz=span()/1024,cx=(f-viewC())*1000/hz+512,w=bw/hz;
+  return mode==="usb"?[cx,cx+w]:mode==="lsb"?[cx-w,cx]:[cx-w/2,cx+w/2]}
+function render(){mc.style.display=$("vb").checked?"none":"block";if($("vb").checked)return;
+  mx.fillStyle="#000";mx.fillRect(0,0,1024,mc.height);
+  if($("vws").value==="waterfall")mx.drawImage(wc,0,0);
+  else if(lastRow){mx.strokeStyle="#c6f";mx.beginPath();for(let x=0;x<1024;x++){const y=wfH-4-(lastRow[x]-mm+12)/55*(wfH-8);x?mx.lineTo(x,y):mx.moveTo(x,y)}mx.stroke()}
+  const sp=span();axis(mx,wfH,viewC(),sp,32);
+  const[x0,x1]=pb(),T=wfH+16,B=wfH+32;mx.strokeStyle="#ff0";mx.lineWidth=1;mx.beginPath();
+  mx.moveTo(x0-8,B);mx.lineTo(x0,T);mx.lineTo(x1,T);mx.lineTo(x1+8,B);mx.stroke();
+  $("bwtxt").innerHTML=`<b style="font-weight:normal">${(bw/1e3).toFixed(2)}</b> kHz @ -6dB; <b style="font-weight:normal">${(bw*1.185/1e3).toFixed(2)}</b> kHz @ -60dB.`;
+  ov()}
+const oc=$("ovw"),ox=oc.getContext("2d");
+function ov(){const c=3e4,sp=c*1e3;ox.fillStyle="#000";ox.fillRect(0,0,1024,57);axis(ox,12,15e3,sp,32);
+  const x=(f-15e3)/c*1024+512;ox.fillStyle="#f90";ox.textAlign="center";ox.font="10px Arial";ox.fillText($("name").value,Math.max(30,Math.min(994,x)),9);
+  ox.strokeStyle="#f90";ox.beginPath();ox.moveTo(x+.5,10);ox.lineTo(x+.5,18);ox.stroke()}
+const sm=$("sm").getContext("2d"),pl=$("pl").getContext("2d"),hist=[];
+const K=[[-108,.04],[-60,.4],[-40,.54],[-20,.72],[0,.87]];
+function frac(d){if(d<=K[0][0])return Math.max(0,.04+(d-K[0][0])*.005);for(let i=1;i<K.length;i++)if(d<=K[i][0])return K[i-1][1]+(K[i][1]-K[i-1][1])*(d-K[i-1][0])/(K[i][0]-K[i-1][0]);return Math.min(1,.87+(d/100)*.1)}
+function meter(){const now=performance.now();if(now-(meter.t||0)<60)return;meter.t=now;
+  sm.fillStyle="#000";sm.fillRect(0,0,250,72);sm.fillStyle="#0f0";sm.fillRect(0,36,frac(db)*250,5);
+  sm.font="7px Arial";sm.textAlign="left";[["S1",-108],["S3",-96],["S5",-84],["S7",-72],["S9",-60],["+20dB",-40],["+40dB",-20],["+60dB",0]].forEach(([t,d])=>sm.fillText(t,frac(d)*250-4,66));
+  $("smt").textContent=`${db.toFixed(1)} dB; peak ${peak.toFixed(1)} dB;`;
+  const m=$("plot").value;if(m!=="none"){if(now-(meter.p||0)>(m==="fast"?100:500)){meter.p=now;hist.push(db);if(hist.length>250)hist.shift()}
+    pl.fillStyle="#000";pl.fillRect(0,0,250,40);pl.strokeStyle="#0f0";pl.beginPath();hist.forEach((d,i)=>{const y=40-frac(d)*40;i?pl.lineTo(i,y):pl.moveTo(i,y)});pl.stroke()}}
+$("plot").onchange=()=>{$("pl").style.display=$("plot").value==="none"?"none":"block"};
+
+// ---------- tuning / UI
+function setF(v){f=Math.max(0,Math.min(3e4,v));if(Math.abs(f-fc)>SR*.4/1e3){fc=f;vcs=f;hwFreq()}
+  if(zoom){const h=span()/2e3,m=h*.1,c=viewC();if(f<c-h+m)vcs=f-h+m;else if(f>c+h-m)vcs=f+h-m} // view only scrolls when the tuned frequency reaches its edge
+  $("freq").value=f.toFixed(2);render()}
+function setMode(m,b){mode=m;bw=b;active();setF(f)}
+function active(){document.querySelectorAll("#bwg button[data-m]").forEach(x=>x.classList.toggle("on",x.dataset.m===mode&&+x.dataset.b===bw))}
+$("freq").onchange=()=>setF(parseFloat($("freq").value)||f);
+document.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{const d=+b.dataset.d;setF(f+Math.sign(d)*st()[Math.abs(d)-1])});
+document.querySelectorAll("#bwg button").forEach(b=>b.onclick=()=>{
+  if(b.dataset.m)return setMode(b.dataset.m,+b.dataset.b);
+  const dir=+b.dataset.w;if(mode==="fm"){const L=[7500,15000,30000,2e5];let i=L.findIndex(v=>v>=bw*.99);i=Math.max(0,Math.min(3,(i<0?3:i)+dir));bw=L[i]}
+  else bw=Math.max(100,Math.min(24000,bw*(dir>0?1.2:1/1.2)));active();setF(f)});
+const zs=(z,x)=>{const u=x===undefined?.5:x/1024,fx=viewC()+(u-.5)*span()/1e3;zoom=Math.max(0,Math.min(4,z));vcs=fx-(u-.5)*span()/1e3;render()}; // zoom keeps the frequency under the cursor fixed
+$("zi").onclick=()=>zs(zoom+1);$("zo").onclick=()=>zs(zoom-1);$("mi").onclick=()=>zs(4);$("mo").onclick=()=>zs(0);
+$("siz").onchange=()=>{wfH=+$("siz").value;wc.height=wfH;mc.height=wfH+74;render()};
+$("vb").onchange=$("vw").onchange=render;$("vws").onchange=render;
+const fAt=x=>viewC()+(x/1024-.5)*span()/1e3,snap=v=>{const s=st()[0];return Math.round(v/s)*s};
+let drag=null,sx=0,sv=0,moved=false;const px=e=>{const r=mc.getBoundingClientRect();return[(e.clientX-r.left)*1024/r.width,(e.clientY-r.top)*mc.height/r.height]};
+mc.onmousedown=e=>{const[x,y]=px(e),[a,b]=pb();moved=false;sx=x;sv=viewC();
+  drag=y>wfH+8&&Math.abs(x-a)<7?"l":y>wfH+8&&Math.abs(x-b)<7?"r":y>wfH?"t":"p"; // waterfall: click tunes, drag pans; scale: drag tunes
+  if(drag==="t")setF(snap(fAt(x)))};
+addEventListener("mouseup",()=>{if(drag==="p"&&!moved)setF(snap(fAt(sx)));drag=null});
+addEventListener("mousemove",e=>{if(!drag)return;const[x]=px(e),hz=span()/1024,cx=(f-viewC())*1000/hz+512;
+  if(drag==="p"){const dx=x-sx;if(Math.abs(dx)>3)moved=true;if(moved&&zoom){vcs=sv-dx*span()/1024/1e3;render()}return} // tuned frequency stays where it is
+  if(drag==="t")return setF(snap(fAt(x)));
+  const w=mode==="usb"?(drag==="r"?x-cx:0):mode==="lsb"?(drag==="l"?cx-x:0):2*Math.abs(x-cx);if(w>0){bw=Math.max(100,Math.min(mode==="fm"?25e4:24000,w*hz));active();render()}});
+mc.addEventListener("wheel",e=>{e.preventDefault();const d=e.deltaY||e.deltaX;if(e.shiftKey){if(zoom){vcs=viewC()+(d>0?1:-1)*span()/8e3;render()}return}zs(zoom+(d<0?1:-1),px(e)[0])},{passive:false});
+oc.onclick=e=>{const r=oc.getBoundingClientRect();setF(snap(15e3+((e.clientX-r.left)/r.width-.5)*3e4))};
+addEventListener("keydown",e=>{if(!$("kb").checked||/INPUT|SELECT/.test(e.target.tagName))return;const s=st(),k=e.key;
+  if(k==="ArrowRight")setF(f+s[0]);else if(k==="ArrowLeft")setF(f-s[0]);else if(k==="ArrowUp")setF(f+s[1]);else if(k==="ArrowDown")setF(f-s[1]);
+  else if(k==="+")zs(zoom+1);else if(k==="-")zs(zoom-1);else if(k==="m"){$("mute").click()}else return;e.preventDefault()});
+
+// memories
+let mems=store("rtlmem")||[];
+function memUI(){const s=$("mem"),v=s.value;s.innerHTML='<option value="-1">(new)</option>'+mems.map((m,i)=>`<option value="${i}">${m.f.toFixed(2)} ${m.m}</option>`).join("");s.value=v<mems.length?v:-1;
+  $("recall").disabled=$("erase").disabled=s.value==="-1"}
+$("mem").onchange=memUI;
+$("store").onclick=()=>{const m={f,m:mode,b:bw},i=+$("mem").value;if(i<0){mems.push(m);store("rtlmem",mems);memUI();$("mem").value=mems.length-1}else{mems[i]=m;store("rtlmem",mems)}memUI()};
+$("recall").onclick=()=>{const m=mems[+$("mem").value];if(m){mode=m.m;bw=m.b;active();setF(m.f)}};
+$("erase").onclick=()=>{mems.splice(+$("mem").value,1);store("rtlmem",mems);$("mem").value=-1;memUI()};
+// logbook / chat / recording
+let lg=store("rtllog")||[];
+$("ls").onclick=()=>{if(!$("lc").value&&!$("lm").value)return;lg.push(`${new Date().toISOString().slice(0,19)} ${f.toFixed(2)} kHz ${mode} ${$("name").value}: ${$("lc").value} ${$("lm").value}`);store("rtllog",lg);$("lc").value=$("lm").value=""};
+$("l20").onclick=e=>{e.preventDefault();alert(lg.slice(-20).join("\n")||"(logbook is empty)")};
+$("lall").onclick=e=>{e.preventDefault();alert(lg.join("\n")||"(logbook is empty)")};
+$("ci").onkeydown=e=>{if(e.key==="Enter"&&$("ci").value){const d=document.createElement("div");d.textContent=$("name").value+": "+$("ci").value;$("chatlog").appendChild(d);$("ci").value=""}};
+$("cmp").onchange=()=>{const h=$("cmp").checked;for(const i of["log","ovw","hr2","chat"])$(i).style.display=h?"none":""};
+// ---------- WAV recording (16-bit mono PCM of the demodulated audio)
+let rec=false,recC=[],recN=0,recName="",recTimer=0;
+const RATE=SR/25,pad=n=>String(n).padStart(2,"0");
+const fmtSize=b=>b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(2)+" MB";
+function recUI(){const t=Math.floor(recN/RATE);$("recinfo").textContent=rec?`● ${pad(Math.floor(t/60))}:${pad(t%60)} - ${fmtSize(44+recN*2)}`:""}
+function wavBlob(){const b=new ArrayBuffer(44+recN*2),v=new DataView(b),w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))};
+  w(0,"RIFF");v.setUint32(4,36+recN*2,true);w(8,"WAVEfmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
+  v.setUint32(24,RATE,true);v.setUint32(28,RATE*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,recN*2,true);
+  const a=new Int16Array(b,44,recN);let o=0;for(const c of recC){a.set(c,o);o+=c.length}return new Blob([b],{type:"audio/wav"})}
+$("rec").onclick=()=>{
+  if(!rec){const d=new Date();recName=`websdr_recording_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}_${f.toFixed(2)}kHz_${mode}.wav`;
+    recC=[];recN=0;rec=true;$("rec").textContent="stop";recUI();recTimer=setInterval(recUI,250);return}
+  rec=false;clearInterval(recTimer);$("rec").textContent="start";
+  if(!recN){$("recinfo").textContent="nothing recorded (no audio received)";return}
+  const a=document.createElement("a");a.href=URL.createObjectURL(wavBlob());a.download=recName;a.click();
+  $("recinfo").textContent="saved "+recName+" ("+fmtSize(44+recN*2)+")";recC=[];recN=0};
+
+active();memUI();setF(f);
+if(C.autoConnect)connect();
+})();
+</script>
+</body>
+</html>
