@@ -3,10 +3,8 @@ window.RTL_CONFIG = {
   // Your rtl_tcp server (raw TCP; browsers can't talk to this directly).
   rtlTcp: { host: "193.24.208.6", port: 1240 },
 
-  // WebSocket address the page actually connects to.
-  // Run a bridge on your PC:   websockify 6080 193.24.208.6:1240
-  // Leave "" to try ws://host:port directly (only works if the server speaks WebSocket).
-  wsUrl: "ws://localhost:6080",
+  // WebSocket address the page actually connects to via the active Serveo tunnel.
+  wsUrl: "wss://5584d2bdb7f5ff51-182-11-129-113.serveousercontent.com",
 
   stationLocation: "Budapest, Hungary",  // shown in the info text at the top
   operator: "michaelnxdstan",
@@ -20,3 +18,6 @@ window.RTL_CONFIG = {
   volume: 0.7,             // 0 - 1
   deemphasisUs: 50         // 50 (Europe/Asia) or 75 (Americas) for wfm
 };
+```[cite: 3]
+
+Just paste this into your `config.js` file, save it, commit/push it to your GitHub repository, and your GitHub Pages site will route straight through your local bridge and tunnel to SimTX!
