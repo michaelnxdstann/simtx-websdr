@@ -20,4 +20,4 @@ window.RTL_CONFIG = {
 };
 ```[cite: 3]
 
-Just paste this into your `config.js` file, save it, commit/push it to your GitHub repository, and your GitHub Pages site will route straight through your local bridge and tunnel to SimTX!
+Just save the file, commit and push the change to your GitHub repository, and your GitHub Pages site will use that tunnel address.
