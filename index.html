@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>WebSDR in Budapest, Hungary.</title>
+<title>WebSDR - rtl_tcp</title>
 <script src="config.js"></script>
 <style>
   body{background:#c0c0c0;color:#000;margin:3px;font:16px "Times New Roman",Times,serif}
@@ -115,7 +115,7 @@
 
 <script>
 (() => {
-const D={rtlTcp:{host:"127.0.0.1",port:1234},wsUrl:"",frequencyMHz:10.1,mode:"am",sampleRate:1200000,gainMode:"auto",gainDb:30,ppm:0,volume:.7,deemphasisUs:50,autoConnect:true};
+const D={rtlTcp:{host:"127.0.0.1",port:1234},wsUrl:"wss://5584d2bdb7f5ff51-182-11-129-113.serveousercontent.com",frequencyMHz:10.1,mode:"am",sampleRate:1200000,gainMode:"auto",gainDb:30,ppm:0,volume:.7,deemphasisUs:50,autoConnect:true};
 const C=Object.assign({},D,window.RTL_CONFIG||{}),$=i=>document.getElementById(i),SR=C.sampleRate,PI=Math.PI;
 const target=()=>C.wsUrl||`ws://${C.rtlTcp.host}:${C.rtlTcp.port}`;
 let f=Math.max(0,Math.min(3e4,C.frequencyMHz*1000)),fc=f,inv=false,vcs=f,mode=C.mode==="am"?"am":"fm",bw=C.mode==="wfm"?2e5:C.mode==="nfm"?15000:9000,zoom=0;
@@ -210,7 +210,7 @@ const row=wx.createImageData(1024,1),stops=[[0,0,0],[60,0,130],[150,0,220],[255,
 function col(t){t=Math.max(0,Math.min(.9999,t))*4;const i=t|0,u=t-i,a=stops[i],b=stops[i+1];return[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u]}
 const span=()=>SR/Math.pow(2,zoom);
 function viewC(){if(!zoom)return fc;const h=(SR-span())/2e3;return Math.max(fc-h,Math.min(fc+h,vcs))}
-const sb=new Uint8Array(2*N);let sbn=0; // collects chunks until a full FFT block is available
+const sb=new Uint8Array(2*N);let sbn=0;
 function spectrum(u8){if(sbn<2*N){const c=Math.min(u8.length,2*N-sbn);sb.set(u8.subarray(0,c),sbn);sbn+=c}
   if(sbn<2*N)return;sbn=0;const now=performance.now();if(now-lastT<+$("spd").value)return;lastT=now;
   for(let i=0;i<N;i++){re[i]=(sb[2*i]-127.5)/127.5*win[i];im[i]=(sb[2*i+1]-127.5)/127.5*win[i]}
@@ -264,7 +264,7 @@ $("plot").onchange=()=>{$("pl").style.display=$("plot").value==="none"?"none":"b
 
 // ---------- tuning / UI
 function setF(v){f=Math.max(0,Math.min(3e4,v));if(Math.abs(f-fc)>SR*.4/1e3){fc=f;vcs=f;hwFreq()}
-  if(zoom){const h=span()/2e3,m=h*.1,c=viewC();if(f<c-h+m)vcs=f-h+m;else if(f>c+h-m)vcs=f+h-m} // view only scrolls when the tuned frequency reaches its edge
+  if(zoom){const h=span()/2e3,m=h*.1,c=viewC();if(f<c-h+m)vcs=f-h+m;else if(f>c+h-m)vcs=f+h-m}
   $("freq").value=f.toFixed(2);render()}
 function setMode(m,b){mode=m;bw=b;active();setF(f)}
 function active(){document.querySelectorAll("#bwg button[data-m]").forEach(x=>x.classList.toggle("on",x.dataset.m===mode&&+x.dataset.b===bw))}
@@ -274,18 +274,18 @@ document.querySelectorAll("#bwg button").forEach(b=>b.onclick=()=>{
   if(b.dataset.m)return setMode(b.dataset.m,+b.dataset.b);
   const dir=+b.dataset.w;if(mode==="fm"){const L=[7500,15000,30000,2e5];let i=L.findIndex(v=>v>=bw*.99);i=Math.max(0,Math.min(3,(i<0?3:i)+dir));bw=L[i]}
   else bw=Math.max(100,Math.min(24000,bw*(dir>0?1.2:1/1.2)));active();setF(f)});
-const zs=(z,x)=>{const u=x===undefined?.5:x/1024,fx=viewC()+(u-.5)*span()/1e3;zoom=Math.max(0,Math.min(4,z));vcs=fx-(u-.5)*span()/1e3;render()}; // zoom keeps the frequency under the cursor fixed
+const zs=(z,x)=>{const u=x===undefined?.5:x/1024,fx=viewC()+(u-.5)*span()/1e3;zoom=Math.max(0,Math.min(4,z));vcs=fx-(u-.5)*span()/1e3;render()};
 $("zi").onclick=()=>zs(zoom+1);$("zo").onclick=()=>zs(zoom-1);$("mi").onclick=()=>zs(4);$("mo").onclick=()=>zs(0);
 $("siz").onchange=()=>{wfH=+$("siz").value;wc.height=wfH;mc.height=wfH+74;render()};
 $("vb").onchange=$("vw").onchange=render;$("vws").onchange=render;
 const fAt=x=>viewC()+(x/1024-.5)*span()/1e3,snap=v=>{const s=st()[0];return Math.round(v/s)*s};
 let drag=null,sx=0,sv=0,moved=false;const px=e=>{const r=mc.getBoundingClientRect();return[(e.clientX-r.left)*1024/r.width,(e.clientY-r.top)*mc.height/r.height]};
 mc.onmousedown=e=>{const[x,y]=px(e),[a,b]=pb();moved=false;sx=x;sv=viewC();
-  drag=y>wfH+8&&Math.abs(x-a)<7?"l":y>wfH+8&&Math.abs(x-b)<7?"r":y>wfH?"t":"p"; // waterfall: click tunes, drag pans; scale: drag tunes
+  drag=y>wfH+8&&Math.abs(x-a)<7?"l":y>wfH+8&&Math.abs(x-b)<7?"r":y>wfH?"t":"p";
   if(drag==="t")setF(snap(fAt(x)))};
 addEventListener("mouseup",()=>{if(drag==="p"&&!moved)setF(snap(fAt(sx)));drag=null});
 addEventListener("mousemove",e=>{if(!drag)return;const[x]=px(e),hz=span()/1024,cx=(f-viewC())*1000/hz+512;
-  if(drag==="p"){const dx=x-sx;if(Math.abs(dx)>3)moved=true;if(moved&&zoom){vcs=sv-dx*span()/1024/1e3;render()}return} // tuned frequency stays where it is
+  if(drag==="p"){const dx=x-sx;if(Math.abs(dx)>3)moved=true;if(moved&&zoom){vcs=sv-dx*span()/1024/1e3;render()}return}
   if(drag==="t")return setF(snap(fAt(x)));
   const w=mode==="usb"?(drag==="r"?x-cx:0):mode==="lsb"?(drag==="l"?cx-x:0):2*Math.abs(x-cx);if(w>0){bw=Math.max(100,Math.min(mode==="fm"?25e4:24000,w*hz));active();render()}});
 mc.addEventListener("wheel",e=>{e.preventDefault();const d=e.deltaY||e.deltaX;if(e.shiftKey){if(zoom){vcs=viewC()+(d>0?1:-1)*span()/8e3;render()}return}zs(zoom+(d<0?1:-1),px(e)[0])},{passive:false});
@@ -309,7 +309,7 @@ $("l20").onclick=e=>{e.preventDefault();alert(lg.slice(-20).join("\n")||"(logboo
 $("lall").onclick=e=>{e.preventDefault();alert(lg.join("\n")||"(logbook is empty)")};
 $("ci").onkeydown=e=>{if(e.key==="Enter"&&$("ci").value){const d=document.createElement("div");d.textContent=$("name").value+": "+$("ci").value;$("chatlog").appendChild(d);$("ci").value=""}};
 $("cmp").onchange=()=>{const h=$("cmp").checked;for(const i of["log","ovw","hr2","chat"])$(i).style.display=h?"none":""};
-// ---------- WAV recording (16-bit mono PCM of the demodulated audio)
+// ---------- WAV recording
 let rec=false,recC=[],recN=0,recName="",recTimer=0;
 const RATE=SR/25,pad=n=>String(n).padStart(2,"0");
 const fmtSize=b=>b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(2)+" MB";
@@ -332,3 +332,6 @@ if(C.autoConnect)connect();
 </script>
 </body>
 </html>
+```[cite: 3]
+
+Just replace your old `index.html` contents with this file, save, and push to GitHub!
