@@ -12,7 +12,7 @@ window.RTL_CONFIG = {
   mode: "am",              // "am" | "nfm" | "wfm" | "usb" | "lsb"
   sampleRate: 1200000,     // 1.2 MS/s
   gainMode: "auto",        // "auto" | "manual"
-  gainDb: 30,
+  gainDb: 0,
   ppm: 0,
   volume: 0.7,
   deemphasisUs: 50,
