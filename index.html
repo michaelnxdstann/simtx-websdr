@@ -18,15 +18,11 @@
   canvas{display:block;background:#000}
   #main{cursor:crosshair;max-width:100%}
   small{font-size:10px;display:block;margin-top:3px}
-  #bml{max-height:230px;overflow-y:auto;margin-top:5px;font-size:13px;border:1px solid #c8c8c8}
-  #bml summary{cursor:pointer;font-weight:bold;background:#e4e4e4;padding:2px 5px}
-  .bmr{display:flex;gap:8px;padding:1px 5px;cursor:pointer}.bmr:hover{background:#ddd}.bmr.on{background:#ffe97a}.bmr.off{color:#666;font-style:italic}.bmx{margin-left:auto;font-size:11px;color:#888;flex:none}
-  .bmr b{width:60px;text-align:right;font-weight:normal;flex:none}
   .grid{display:grid;grid-template-columns:74px 87px 73px 71px 67px 76px 40px;gap:3px 0;margin-top:5px}
   .grid button{justify-self:start}
   #astart{background:#000;color:#fff;border:1px solid #555;border-radius:3px;padding:3px 8px;font:14px Arial,sans-serif;cursor:pointer}
   .java{color:#d00}.html5{color:#080}
-  #chatlog{font-size:14px;height:120px;overflow-y:auto;background:#fff;border:1px solid #a0a0a0;width:600px;max-width:100%;padding:3px 5px;margin:6px 0;word-break:break-word}
+  #chatlog{font-size:14px;height:120px;overflow-y:auto;background:#fff !important;color:#000 !important;border:1px solid #a0a0a0;width:600px;max-width:100%;padding:3px 5px;margin:6px 0;word-break:break-word}
 </style>
 </head>
 <body>
@@ -84,14 +80,6 @@
     <div>View: <select id="vws"><option>waterfall</option><option>spectrum</option></select></div>
   </div>
 
-  <div class="b" id="bmp" style="width:300px">
-    <b>Station bookmarks:</b>
-    <input type="text" id="bmf" placeholder="filter (name, kHz, country)" style="width:100%;box-sizing:border-box;margin-top:5px">
-    <label style="font-size:13px;display:block;margin-top:4px"><input type="checkbox" id="bmoff" checked> show closed / inactive stations</label>
-    <div id="bml"></div>
-    <small>Click a station to tune. The tags under the scale are the same stations.</small>
-  </div>
-
   <div class="b" style="width:250px">
     <canvas id="sm" width="250" height="72"></canvas>
     <div id="smt" style="margin:2px 0 0 8px">&nbsp;</div>
@@ -130,20 +118,21 @@ const C=Object.assign({},D,window.RTL_CONFIG||{}),$=i=>document.getElementById(i
 const target=()=>C.wsUrl||`ws://${C.rtlTcp.host}:${C.rtlTcp.port}`;
 let f=Math.max(0,Math.min(3e4,C.frequencyMHz*1000)),fc=f,inv=false,vcs=f,mode=C.mode==="am"?"am":"fm",bw=C.mode==="wfm"?2e5:C.mode==="nfm"?15000:6000,zoom=0;
 let ws=null,gotH=false,head=new Uint8Array(0),carry=-1,actx=null,gn=null,nextT=0,wfH=100,db=-120,peak=-120,flo=-60,mm=0,lastT=0,lastRow=null,medS=-60,medOK=false,hx=null,tags=[];
+let chatQueue=[];
 const st=()=>mode==="fm"?(bw>=1e5?[50,100,1000]:[5,12.5,100]):mode==="am"||mode==="amsync"?[1,9,100]:[.1,1,10];
 const store=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}};
 if(C.stationLocation)$("loc").textContent=C.stationLocation;if(C.operator)$("op").textContent=C.operator;
 {const nm=store("rtlname");$("name").value=typeof nm==="string"&&nm?nm:"Anon"+(100000+Math.floor(Math.random()*899999))}
-store("rtlname",$("name").value);                                   // remember the name/callsign between visits
+store("rtlname",$("name").value);
 $("name").oninput=()=>{store("rtlname",$("name").value);ov()};
 $("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
 
 // ---------- rtl_tcp & auto-reconnect
-const cmd=(c,v)=>{if(ws&&ws.readyState===1){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
-function hwFreq(){ // 0-30 MHz: direct sampling (Q branch) below 24 MHz, tuner above
+const cmd=(c,v)=>{if(ws&&ws.readyState===WebSocket.OPEN){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
+function hwFreq(){
   if(fc>=24e3){cmd(9,0);inv=false;cmd(1,Math.round(fc*1000))}
   else if(fc<=14.4e3){cmd(9,2);inv=false;cmd(1,Math.round(fc*1000))}
-  else{cmd(9,2);inv=true;cmd(1,Math.round((28.8e3-fc)*1000))} // aliased image, spectrum mirrored
+  else{cmd(9,2);inv=true;cmd(1,Math.round((28.8e3-fc)*1000))}
 }
 function hwGain(){const g=$("rf").value;if(g==="auto"){cmd(3,0);cmd(8,1)}else{cmd(8,0);cmd(3,1);cmd(4,Math.round(g*10))}}
 
@@ -153,12 +142,19 @@ function connect(){
   const url=target();gotH=false;head=new Uint8Array(0);carry=-1;
   try{ws=new WebSocket(url)}catch(e){scheduleReconnect();return}
   ws.binaryType="arraybuffer";
-  ws.onopen=()=>{cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();};
-  ws.onmessage=ev=>{if(typeof ev.data==="string"){chatIn(ev.data);return}
+  ws.onopen=()=>{
+    cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();
+    while(chatQueue.length>0&&ws.readyState===WebSocket.OPEN){
+      ws.send(chatQueue.shift());
+    }
+  };
+  ws.onmessage=ev=>{
+    if(typeof ev.data==="string"){chatIn(ev.data);return}
     let u=new Uint8Array(ev.data);
     if(!gotH){const m=new Uint8Array(head.length+u.length);m.set(head);m.set(u,head.length);if(m.length<12){head=m;return}
       const ok=String.fromCharCode(...m.subarray(0,4))==="RTL0";gotH=true;u=m.subarray(ok?12:0)}
-    if(u.length)data(u)};
+    if(u.length)data(u)
+  };
   ws.onerror=()=>{if(ws)ws.close();};
   ws.onclose=()=>{ws=null;scheduleReconnect();};
 }
@@ -266,7 +262,6 @@ function axis(c,y,vc,sp,h){c.font="10px 'Courier New',monospace";c.textBaseline=
   c.textAlign="center";for(const[a,b,l,t]of BANDS){if(b<lo||a>vc+k/2)continue;const x0=Math.max(0,(a-vc)/k*1024+512),x1=Math.min(1024,(b-vc)/k*1024+512);
     c.strokeStyle=c.fillStyle=BC[t];c.beginPath();c.moveTo(x0,y+h);c.lineTo(x1,y+h);c.stroke();c.font="9px 'Courier New',monospace";c.fillText(l,(x0+x1)/2,y+h+10)}}
 const DXC=["#a6753c","#2f78b4","#3a8f4a","#8a4aa0","#6a7480","#b03a3a","#707070"];
-const GROUPS=["Russian military (Priyom)","Time signals","Aviation (HFGCS & Volmet)","Shortwave broadcasters","Longwave broadcasters","Longwave - closed stations","LF time signals","Ham & marine channels"];
 const DX=[
 [4625,"RUS MIL Buzzer (UVB-76)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
 [5292,"RUS MIL D Marker","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
@@ -421,10 +416,10 @@ const DX=[
 [162,"ALS162 (FR)","cw",250,1,"LF time signals","France - Allouis, time signal on the old France Inter carrier"],
 [75,"HBG (CH)","cw",250,1,"LF time signals","Switzerland - Prangins, discontinued 1 January 2012",0]
 ].concat(C.dx||[]);
-const showOff=()=>$("bmoff").checked,isOff=d=>d[7]===0;
+const isOff=d=>d[7]===0;
 function drawDX(c,vc,k,y0){tags=[];c.font="11px Arial,sans-serif";c.textAlign="left";c.textBaseline="alphabetic";
   const items=[];
-  for(const d of DX.filter(d=>d[0]>=vc-k/2&&d[0]<=vc+k/2&&(showOff()||!isOff(d))).sort((a,b)=>a[0]-b[0])){
+  for(const d of DX.filter(d=>d[0]>=vc-k/2&&d[0]<=vc+k/2).sort((a,b)=>a[0]-b[0])){
     const L=items[items.length-1];if(L&&Math.abs(L.d[0]-d[0])<.5){L.n++;if(isOff(L.d)&&!isOff(d))L.d=d}else items.push({d,n:1})}
   const last=[null,null,null],placed=[];
   for(const it of items){const d=it.d,label=d[1]+(it.n>1?" +"+(it.n-1):""),x=Math.round((d[0]-vc)/k*1024+512),fw=Math.ceil(c.measureText(label).width)+8;let r=0;
@@ -475,7 +470,7 @@ $("plot").onchange=()=>{$("pl").style.display=$("plot").value==="none"?"none":"b
 // ---------- tuning / UI
 function setF(v){f=Math.max(0,Math.min(3e4,v));if(Math.abs(f-fc)>SR*.4/1e3){fc=f;vcs=f;hwFreq()}
   if(zoom){const h=span()/2e3,m=h*.1,c=viewC();if(f<c-h+m)vcs=f-h+m;else if(f>c+h-m)vcs=f+h-m}
-  $("freq").value=f.toFixed(2);bmHL();render()}
+  $("freq").value=f.toFixed(2);render()}
 function setMode(m,b){mode=m;bw=b;active();setF(f)}
 function active(){document.querySelectorAll("#bwg button[data-m]").forEach(x=>x.classList.toggle("on",x.dataset.m===mode&&+x.dataset.b===bw))}
 $("freq").onchange=()=>setF(parseFloat($("freq").value)||f);
@@ -490,6 +485,7 @@ $("siz").onchange=()=>{wfH=+$("siz").value;wc.height=wfH;mc.height=wfH+100;rende
 $("vb").onchange=$("vw").onchange=render;$("vws").onchange=render;
 const fAt=x=>viewC()+(x/1024-.5)*span()/1e3,snap=v=>{const s=st()[0];return Math.round(v/s)*s};
 let drag=null,sx=0,sv=0,moved=false;const px=e=>{const r=mc.getBoundingClientRect();return[(e.clientX-r.left)*1024/r.width,(e.clientY-r.top)*mc.height/r.height]};
+function tuneStn(d){if(d[2]){mode=d[2];bw=d[3]||bw;active()}if(zoom)vcs=d[0];setF(d[0])}
 mc.onmousedown=e=>{const[x,y]=px(e),[a,b]=pb();
   const hit=tags.find(t=>x>=t.x&&x<=t.x+t.w&&y>=t.y&&y<=t.y+16);
   if(hit){tuneStn(hit.d);drag=null;return}
@@ -507,21 +503,6 @@ oc.onclick=e=>{const r=oc.getBoundingClientRect();setF(snap(15e3+((e.clientX-r.l
 addEventListener("keydown",e=>{if(!$("kb").checked||/INPUT|SELECT/.test(e.target.tagName))return;const s=st(),k=e.key;
   if(k==="ArrowRight")setF(f+s[0]);else if(k==="ArrowLeft")setF(f-s[0]);else if(k==="ArrowUp")setF(f+s[1]);else if(k==="ArrowDown")setF(f-s[1]);
   else if(k==="+")zs(zoom+1);else if(k==="-")zs(zoom-1);else if(k==="m"){$("mute").click()}else return;e.preventDefault()});
-
-// ---------- station bookmarks panel
-function tuneStn(d){if(d[2]){mode=d[2];bw=d[3]||bw;active()}if(zoom)vcs=d[0];setF(d[0])}
-function bmHL(){document.querySelectorAll(".bmr").forEach(r=>r.classList.toggle("on",Math.abs(DX[+r.dataset.i][0]-f)<.5))}
-function buildBM(){const q=$("bmf").value.trim().toLowerCase(),box=$("bml");box.textContent="";
-  const gs=GROUPS.concat([...new Set(DX.map(d=>d[5]||"My stations"))].filter(g=>!GROUPS.includes(g)));
-  gs.forEach((g,gi)=>{const idx=[];DX.forEach((d,i)=>{if((d[5]||"My stations")===g&&(showOff()||!isOff(d))&&(!q||(d[1]+" "+d[0]+" "+(d[6]||"")).toLowerCase().includes(q)))idx.push(i)});
-    if(!idx.length)return;idx.sort((a,b)=>DX[a][0]-DX[b][0]);
-    const det=document.createElement("details"),sm=document.createElement("summary");sm.textContent=`${g} (${idx.length})`;det.appendChild(sm);det.open=!!q||gi<2;
-    for(const i of idx){const r=document.createElement("div"),d=DX[i];r.className="bmr";r.dataset.i=i;if(d[6])r.title=d[6];
-      const b=document.createElement("b"),n=document.createElement("span");b.textContent=d[0];n.textContent=d[1];r.append(b,n);if(isOff(d)){r.classList.add("off");const x=document.createElement("span");x.className="bmx";x.textContent="closed";r.append(x)}det.appendChild(r)}
-    box.appendChild(det)});
-  if(!box.children.length)box.textContent="No matching stations";bmHL()}
-$("bml").onclick=e=>{const r=e.target.closest(".bmr");if(r)tuneStn(DX[+r.dataset.i])};
-$("bmf").oninput=buildBM;$("bmoff").onchange=()=>{buildBM();render()};
 
 // memories
 let mems=store("rtlmem")||[];
@@ -542,9 +523,19 @@ function chatLine(txt,sys){const l=$("chatlog"),d=document.createElement("div");
   const bottom=l.scrollTop+l.clientHeight>=l.scrollHeight-8;l.appendChild(d);while(l.children.length>200)l.removeChild(l.firstChild);if(bottom)l.scrollTop=l.scrollHeight}
 function chatIn(raw){let m;try{m=JSON.parse(raw)}catch(e){return}
   if(m&&m.type==="chat"&&typeof m.name==="string"&&typeof m.text==="string"){const t=new Date(m.t||Date.now());chatLine(`[${hh2(t.getHours())}:${hh2(t.getMinutes())}] ${m.name}: ${m.text}`)}}
-$("ci").onkeydown=e=>{if(e.key!=="Enter")return;const text=$("ci").value.trim();if(!text)return;
-  if(!ws||ws.readyState!==1){chatLine("(not connected - message not sent)",1);return}
-  ws.send(JSON.stringify({type:"chat",name:$("name").value.trim()||"Anon",text}));$("ci").value=""};
+
+$("ci").onkeydown=e=>{
+  if(e.key!=="Enter")return;
+  const text=$("ci").value.trim();if(!text)return;
+  const msg=JSON.stringify({type:"chat",name:$("name").value.trim()||"Anon",text});
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    ws.send(msg);
+  }else{
+    chatQueue.push(msg);
+    chatLine("(connecting - message queued)",1);
+  }
+  $("ci").value="";
+};
 $("cmp").onchange=()=>{const h=$("cmp").checked;for(const i of["log","ovw","hr2","chat"])$(i).style.display=h?"none":""};
 
 // ---------- WAV recording
@@ -564,8 +555,8 @@ $("rec").onclick=()=>{
   const a=document.createElement("a");a.href=URL.createObjectURL(wavBlob());a.download=recName;a.click();
   $("recinfo").textContent="saved "+recName+" ("+fmtSize(44+recN*2)+")";recC=[];recN=0};
 
-active();memUI();buildBM();setF(f);
-connect(); // Always connected on load with automatic reconnection
+active();memUI();setF(f);
+connect();
 })();
 </script>
 </body>
