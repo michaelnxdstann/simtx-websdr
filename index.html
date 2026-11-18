@@ -103,7 +103,7 @@
 </div>
 
 <hr style="margin-top:14px">
-<div>This WebSDR is currently being used by 1 user(s) simultaneously: &nbsp; <label><input type="checkbox" id="cmp">compact view</label></div>
+<div>This WebSDR is currently being used by <span id="ucnt">1</span> user(s) simultaneously: &nbsp; <label><input type="checkbox" id="cmp">compact view</label></div>
 <canvas id="ovw" width="1024" height="57" style="margin:12px 0 0 3px;max-width:100%"></canvas>
 <hr id="hr2" style="margin-top:14px">
 <div id="chat"><b>Chatbox:</b><br>
@@ -119,12 +119,13 @@ const target=()=>C.wsUrl||`ws://${C.rtlTcp.host}:${C.rtlTcp.port}`;
 let f=Math.max(0,Math.min(3e4,C.frequencyMHz*1000)),fc=f,inv=false,vcs=f,mode=C.mode==="am"?"am":"fm",bw=C.mode==="wfm"?2e5:C.mode==="nfm"?15000:6000,zoom=0;
 let ws=null,gotH=false,head=new Uint8Array(0),carry=-1,actx=null,gn=null,nextT=0,wfH=100,db=-120,peak=-120,flo=-60,mm=0,lastT=0,lastRow=null,medS=-60,medOK=false,hx=null,tags=[];
 let chatQueue=[];
+let activeUsers=[];
 const st=()=>mode==="fm"?(bw>=1e5?[50,100,1000]:[5,12.5,100]):mode==="am"||mode==="amsync"?[1,9,100]:[.1,1,10];
 const store=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}};
 if(C.stationLocation)$("loc").textContent=C.stationLocation;if(C.operator)$("op").textContent=C.operator;
 {const nm=store("rtlname");$("name").value=typeof nm==="string"&&nm?nm:"Anon"+(100000+Math.floor(Math.random()*899999))}
 store("rtlname",$("name").value);
-$("name").oninput=()=>{store("rtlname",$("name").value);ov()};
+$("name").oninput=()=>{store("rtlname",$("name").value);ov();sendPresence()};
 $("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
 
 // ---------- rtl_tcp & auto-reconnect
@@ -136,6 +137,17 @@ function hwFreq(){
 }
 function hwGain(){const g=$("rf").value;if(g==="auto"){cmd(3,0);cmd(8,1)}else{cmd(8,0);cmd(3,1);cmd(4,Math.round(g*10))}}
 
+function sendPresence(){
+  if(ws&&ws.readyState===WebSocket.OPEN){
+    ws.send(JSON.stringify({
+      type: "status",
+      name: $("name").value.trim()||"Anon",
+      freq: f,
+      mode: mode
+    }));
+  }
+}
+
 let reconnectTimer=null;
 function connect(){
   if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
@@ -144,12 +156,25 @@ function connect(){
   ws.binaryType="arraybuffer";
   ws.onopen=()=>{
     cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();
+    sendPresence();
     while(chatQueue.length>0&&ws.readyState===WebSocket.OPEN){
       ws.send(chatQueue.shift());
     }
   };
   ws.onmessage=ev=>{
-    if(typeof ev.data==="string"){chatIn(ev.data);return}
+    if(typeof ev.data==="string"){
+      try{
+        const m=JSON.parse(ev.data);
+        if(m.type==="chat"){chatIn(ev.data);return}
+        if(m.type==="usersList"){
+          activeUsers=m.users||[];
+          $("ucnt").textContent=m.count||1;
+          ov();
+          return;
+        }
+      }catch(e){}
+      return;
+    }
     let u=new Uint8Array(ev.data);
     if(!gotH){const m=new Uint8Array(head.length+u.length);m.set(head);m.set(u,head.length);if(m.length<12){head=m;return}
       const ok=String.fromCharCode(...m.subarray(0,4))==="RTL0";gotH=true;u=m.subarray(ok?12:0)}
@@ -451,10 +476,28 @@ function render(){mc.style.display=$("vb").checked?"none":"block";if($("vb").che
   mx.moveTo(x0-(mode==="usb"?0:8),B);mx.lineTo(x0,T);mx.lineTo(x1,T);mx.lineTo(x1+(mode==="lsb"?0:8),B);mx.stroke();
   $("bwtxt").innerHTML=`<b style="font-weight:normal">${(bw/1e3).toFixed(2)}</b> kHz @ -6dB; <b style="font-weight:normal">${(bw*1.185/1e3).toFixed(2)}</b> kHz @ -60dB.`;
   ov()}
+
 const oc=$("ovw"),ox=oc.getContext("2d");
-function ov(){const c=3e4,sp=c*1e3;ox.fillStyle="#000";ox.fillRect(0,0,1024,57);axis(ox,12,15e3,sp,32);
-  const x=(f-15e3)/c*1024+512;ox.fillStyle="#f90";ox.textAlign="center";ox.font="10px Arial";ox.fillText($("name").value,Math.max(30,Math.min(994,x)),9);
-  ox.strokeStyle="#f90";ox.beginPath();ox.moveTo(x+.5,10);ox.lineTo(x+.5,18);ox.stroke()}
+function ov(){
+  const c=3e4, sp=c*1e3;
+  ox.fillStyle="#000";
+  ox.fillRect(0,0,1024,57);
+  axis(ox,12,15e3,sp,32);
+  
+  for(const u of activeUsers){
+    const x=(u.freq-15e3)/c*1024+512;
+    ox.fillStyle="#f90";
+    ox.textAlign="center";
+    ox.font="10px Arial";
+    ox.fillText(u.name||"Anon", Math.max(30, Math.min(994, x)), 9);
+    ox.strokeStyle="#f90";
+    ox.beginPath();
+    ox.moveTo(x+.5, 10);
+    ox.lineTo(x+.5, 18);
+    ox.stroke();
+  }
+}
+
 const sm=$("sm").getContext("2d"),pl=$("pl").getContext("2d"),hist=[];
 const K=[[-108,.04],[-60,.4],[-40,.54],[-20,.72],[0,.87]];
 function frac(d){if(d<=K[0][0])return Math.max(0,.04+(d-K[0][0])*.005);for(let i=1;i<K.length;i++)if(d<=K[i][0])return K[i-1][1]+(K[i][1]-K[i-1][1])*(d-K[i-1][0])/(K[i][0]-K[i-1][0]);return Math.min(1,.87+(d/100)*.1)}
@@ -470,7 +513,7 @@ $("plot").onchange=()=>{$("pl").style.display=$("plot").value==="none"?"none":"b
 // ---------- tuning / UI
 function setF(v){f=Math.max(0,Math.min(3e4,v));if(Math.abs(f-fc)>SR*.4/1e3){fc=f;vcs=f;hwFreq()}
   if(zoom){const h=span()/2e3,m=h*.1,c=viewC();if(f<c-h+m)vcs=f-h+m;else if(f>c+h-m)vcs=f+h-m}
-  $("freq").value=f.toFixed(2);render()}
+  $("freq").value=f.toFixed(2);render();sendPresence()}
 function setMode(m,b){mode=m;bw=b;active();setF(f)}
 function active(){document.querySelectorAll("#bwg button[data-m]").forEach(x=>x.classList.toggle("on",x.dataset.m===mode&&+x.dataset.b===bw))}
 $("freq").onchange=()=>setF(parseFloat($("freq").value)||f);
@@ -529,10 +572,7 @@ $("ci").onkeydown=e=>{
   const text=$("ci").value.trim();if(!text)return;
   const name=$("name").value.trim()||"Anon";
   const now=new Date();
-  
-  // Instant local display (local echo)
   chatLine(`[${hh2(now.getHours())}:${hh2(now.getMinutes())}] ${name}: ${text}`);
-
   const msg=JSON.stringify({type:"chat",name,text});
   if(ws&&ws.readyState===WebSocket.OPEN){
     ws.send(msg);
@@ -552,7 +592,7 @@ function wavBlob(){const b=new ArrayBuffer(44+recN*2),v=new DataView(b),w=(o,t)=
   w(0,"RIFF");v.setUint32(4,36+recN*2,true);w(8,"WAVEfmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
   v.setUint32(24,RATE,true);v.setUint32(28,RATE*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,recN*2,true);
   const a=new Int16Array(b,44,recN);let o=0;for(const c of recC){a.set(c,o);o+=c.length}return new Blob([b],{type:"audio/wav"})}
-$("rec").onclick=(_, __, ___) => {
+$("rec").onclick=()=>{
   if(!rec){const d=new Date();recName=`websdr_recording_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}_${f.toFixed(2)}kHz_${mode}.wav`;
     recC=[];recN=0;rec=true;$("rec").textContent="stop";recUI();recTimer=setInterval(recUI,250);return}
   rec=false;clearInterval(recTimer);$("rec").textContent="start";
