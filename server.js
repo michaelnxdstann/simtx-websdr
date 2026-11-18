@@ -24,18 +24,22 @@ function broadcast(obj) {
 
 function broadcastUserStates() {
   const users = [];
+  let openCount = 0;
   for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN && client.clientInfo) {
-      users.push(client.clientInfo);
+    if (client.readyState === WebSocket.OPEN) {
+      openCount++;
+      if (client.clientInfo) {
+        users.push(client.clientInfo);
+      }
     }
   }
-  broadcast({ type: 'usersList', users, count: wss.clients.size });
+  broadcast({ type: 'usersList', users, count: openCount || 1 });
 }
 
-function handleChat(ws, message) {
+function handleChat(ws, textData) {
   let m;
   try {
-    m = JSON.parse(message.toString());
+    m = JSON.parse(textData);
   } catch (e) {
     return;
   }
@@ -58,6 +62,9 @@ function handleChat(ws, message) {
 wss.on('connection', (ws) => {
   console.log('Client connected');
   const tcpSocket = new net.Socket();
+
+  // Initialize default client info immediately upon connection
+  ws.clientInfo = { name: 'Anon', freq: 10100, mode: 'am', device: 'Unknown' };
   broadcastUserStates();
 
   for (const h of history) {
@@ -77,25 +84,39 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('message', (message, isBinary) => {
-    // If it's explicitly a binary buffer or flagged as binary, forward to rtl_tcp
-    if (isBinary || Buffer.isBuffer(message)) {
+    if (isBinary) {
       tcpSocket.write(message);
       return;
     }
 
-    // Otherwise treat as text/JSON frame (Chat or Status)
+    const textData = message.toString('utf8');
     try {
-      const textData = message.toString();
       const m = JSON.parse(textData);
       if (m && m.type === 'chat') {
         handleChat(ws, textData);
       } else if (m && m.type === 'status') {
-        ws.clientInfo = { name: clean(m.name, 24), freq: m.freq, mode: m.mode };
+        const name = clean(m.name, 24) || 'Anon';
+        const device = clean(m.device, 20) || 'Unknown';
+        const freq = typeof m.freq === 'number' ? m.freq : 10100;
+        const mode = clean(m.mode, 10) || 'am';
+
+        const isFirstRealStatus = ws.clientInfo.device === 'Unknown';
+        ws.clientInfo = { name, freq, mode, device };
         broadcastUserStates();
+
+        if (isFirstRealStatus && name !== 'Anon') {
+          const sysMsg = {
+            type: 'sys',
+            text: `* ${name} joined the receiver (${device})`,
+            t: Date.now()
+          };
+          history.push(sysMsg);
+          if (history.length > MAX_HISTORY) history.shift();
+          broadcast(sysMsg);
+        }
       }
     } catch (e) {
-      // Fallback if raw string
-      handleChat(ws, message);
+      console.error('Failed to parse text frame:', e.message);
     }
   });
 
@@ -110,7 +131,8 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     console.log('WebSocket client disconnected');
     tcpSocket.destroy();
-    broadcastUserStates();
+    // Defer broadcast slightly so the socket is fully removed from wss.clients
+    setImmediate(broadcastUserStates);
   });
 
   ws.on('error', () => {
