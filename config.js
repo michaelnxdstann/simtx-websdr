@@ -2,8 +2,9 @@
 window.RTL_CONFIG = {
   rtlTcp: { host: "193.24.208.6", port: 1240 },
   
-  // Permanent Fly.io cloud bridge WebSocket address
-  wsUrl: "wss://websdr-rosy-inlet-772.fly.dev",
+  // Cloudflare tunnel to the bridge on my PC (address changes when cloudflared restarts)
+  wsUrl: "wss://friendship-recovery-monitors-bulk.trycloudflare.com/ws?token=M1CH4ELNXDST4NN",
+  // Old Fly.io bridge: "wss://websdr-rosy-inlet-772.fly.dev",
 
   stationLocation: "Budapest, Hungary",
   operator: "michaelnxdstan",
