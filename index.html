@@ -128,6 +128,14 @@ store("rtlname",$("name").value);
 $("name").oninput=()=>{store("rtlname",$("name").value);ov();sendPresence()};
 $("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
 
+function getDeviceType(){
+  const ua=navigator.userAgent||"";
+  if(/iPad|Tablet|PlayBook|Silk|(Android(?!.*Mobile))/i.test(ua))return "Tablet";
+  if(/Mobile|iPhone|iPod|Android|BlackBerry|IEMobile|Opera Mini/i.test(ua))return "Phone";
+  return "Desktop";
+}
+const DEVICE_TYPE=getDeviceType();
+
 // ---------- rtl_tcp & auto-reconnect
 const cmd=(c,v)=>{if(ws&&ws.readyState===WebSocket.OPEN){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
 function hwFreq(){
@@ -143,7 +151,8 @@ function sendPresence(){
       type: "status",
       name: $("name").value.trim()||"Anon",
       freq: f,
-      mode: mode
+      mode: mode,
+      device: DEVICE_TYPE
     }));
   }
 }
@@ -165,7 +174,7 @@ function connect(){
     if(typeof ev.data==="string"){
       try{
         const m=JSON.parse(ev.data);
-        if(m.type==="chat"){chatIn(ev.data);return}
+        if(m.type==="chat"||m.type==="sys"){chatIn(ev.data);return}
         if(m.type==="usersList"){
           activeUsers=m.users||[];
           $("ucnt").textContent=m.count||1;
@@ -484,12 +493,14 @@ function ov(){
   ox.fillRect(0,0,1024,57);
   axis(ox,12,15e3,sp,32);
   
-  for(const u of activeUsers){
+  const list = activeUsers.length ? activeUsers : [{name: $("name").value, freq: f, device: DEVICE_TYPE}];
+  for(const u of list){
     const x=(u.freq-15e3)/c*1024+512;
     ox.fillStyle="#f90";
     ox.textAlign="center";
     ox.font="10px Arial";
-    ox.fillText(u.name||"Anon", Math.max(30, Math.min(994, x)), 9);
+    const label = u.device ? `${u.name||"Anon"} [${u.device}]` : (u.name||"Anon");
+    ox.fillText(label, Math.max(45, Math.min(979, x)), 9);
     ox.strokeStyle="#f90";
     ox.beginPath();
     ox.moveTo(x+.5, 10);
@@ -565,19 +576,25 @@ const hh2=n=>String(n).padStart(2,"0");
 function chatLine(txt,sys){const l=$("chatlog"),d=document.createElement("div");d.textContent=txt;if(sys)d.style.color="#555";
   const bottom=l.scrollTop+l.clientHeight>=l.scrollHeight-8;l.appendChild(d);while(l.children.length>200)l.removeChild(l.firstChild);if(bottom)l.scrollTop=l.scrollHeight}
 function chatIn(raw){let m;try{m=JSON.parse(raw)}catch(e){return}
-  if(m&&m.type==="chat"&&typeof m.name==="string"&&typeof m.text==="string"){const t=new Date(m.t||Date.now());chatLine(`[${hh2(t.getHours())}:${hh2(t.getMinutes())}] ${m.name}: ${m.text}`)}}
+  if(!m)return;
+  const t=new Date(m.t||Date.now());
+  if(m.type==="chat"&&typeof m.name==="string"&&typeof m.text==="string"){
+    chatLine(`[${hh2(t.getHours())}:${hh2(t.getMinutes())}] ${m.name}: ${m.text}`);
+  }else if(m.type==="sys"&&typeof m.text==="string"){
+    chatLine(`[${hh2(t.getHours())}:${hh2(t.getMinutes())}] ${m.text}`,true);
+  }
+}
 
 $("ci").onkeydown=e=>{
   if(e.key!=="Enter")return;
   const text=$("ci").value.trim();if(!text)return;
   const name=$("name").value.trim()||"Anon";
-  const now=new Date();
-  chatLine(`[${hh2(now.getHours())}:${hh2(now.getMinutes())}] ${name}: ${text}`);
   const msg=JSON.stringify({type:"chat",name,text});
   if(ws&&ws.readyState===WebSocket.OPEN){
     ws.send(msg);
   }else{
     chatQueue.push(msg);
+    chatLine("(reconnecting - message queued)",1);
   }
   $("ci").value="";
 };
