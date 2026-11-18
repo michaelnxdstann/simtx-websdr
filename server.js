@@ -22,6 +22,16 @@ function broadcast(obj) {
   }
 }
 
+function broadcastUserStates() {
+  const users = [];
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN && client.clientInfo) {
+      users.push(client.clientInfo);
+    }
+  }
+  broadcast({ type: 'usersList', users, count: wss.clients.size });
+}
+
 function handleChat(ws, message) {
   let m;
   try {
@@ -35,7 +45,7 @@ function handleChat(ws, message) {
   if (!text) return;
 
   const now = Date.now();
-  if (now - (ws.lastChat || 0) < 500) return;
+  if (now - (ws.lastChat || 0) < 300) return;
   ws.lastChat = now;
 
   const out = { type: 'chat', name: clean(m.name, 24) || 'Anon', text, t: now };
@@ -48,6 +58,7 @@ function handleChat(ws, message) {
 wss.on('connection', (ws) => {
   console.log('Client connected');
   const tcpSocket = new net.Socket();
+  broadcastUserStates();
 
   for (const h of history) {
     if (ws.readyState === WebSocket.OPEN) {
@@ -66,30 +77,43 @@ wss.on('connection', (ws) => {
   });
 
   ws.on('message', (message, isBinary) => {
-    if (!isBinary) {
-      handleChat(ws, message);
+    // If it's explicitly a binary buffer or flagged as binary, forward to rtl_tcp
+    if (isBinary || Buffer.isBuffer(message)) {
+      tcpSocket.write(message);
       return;
     }
-    tcpSocket.write(message);
+
+    // Otherwise treat as text/JSON frame (Chat or Status)
+    try {
+      const textData = message.toString();
+      const m = JSON.parse(textData);
+      if (m && m.type === 'chat') {
+        handleChat(ws, textData);
+      } else if (m && m.type === 'status') {
+        ws.clientInfo = { name: clean(m.name, 24), freq: m.freq, mode: m.mode };
+        broadcastUserStates();
+      }
+    } catch (e) {
+      // Fallback if raw string
+      handleChat(ws, message);
+    }
   });
 
   tcpSocket.on('close', () => {
-    console.log('TCP connection closed');
     ws.close();
   });
 
-  tcpSocket.on('error', (err) => {
-    console.error('TCP error:', err.message);
+  tcpSocket.on('error', () => {
     ws.close();
   });
 
   ws.on('close', () => {
     console.log('WebSocket client disconnected');
     tcpSocket.destroy();
+    broadcastUserStates();
   });
 
-  ws.on('error', (err) => {
-    console.error('WebSocket error:', err.message);
+  ws.on('error', () => {
     tcpSocket.destroy();
   });
 });
