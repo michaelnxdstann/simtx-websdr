@@ -2,624 +2,369 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<link rel="icon" type="image/png" href="icon.png">
-<title>WebSDR - rtl_tcp</title>
-<script src="config.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>0–30 MHz Receiver</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo:wght@400;600;700&display=swap">
 <style>
-  body{background:#c0c0c0;color:#000;margin:3px;font:16px "Times New Roman",Times,serif}
-  button,select,input{font:13.333px Arial,Helvetica,sans-serif}
-  input[type=text],input[type=number]{font-size:13.333px}
-  button.on{background:#d8d8d8;border-style:inset}
-  .b{background:#fff;padding:5px;display:inline-block;vertical-align:top}
-  .row{display:flex;gap:8px;align-items:flex-start;margin:22px 0 0 5px;flex-wrap:wrap}
-  .top{display:flex;justify-content:space-between;align-items:flex-start;margin:11px 5px 0 5px}
-  .top .b{margin-right:4px}
-  hr{border:0;border-top:1px solid #a0a0a0;border-bottom:1px solid #e8e8e8;margin:8px 0}
-  canvas{display:block;background:#000}
-  #main{cursor:crosshair;max-width:100%}
-  small{font-size:10px;display:block;margin-top:3px}
-  .grid{display:grid;grid-template-columns:74px 87px 73px 71px 67px 76px 40px;gap:3px 0;margin-top:5px}
-  .grid button{justify-self:start}
-  #astart{background:#000;color:#fff;border:1px solid #555;border-radius:3px;padding:3px 8px;font:14px Arial,sans-serif;cursor:pointer}
-  .java{color:#d00}.html5{color:#080}
-  #chatlog{font-size:14px;height:120px;overflow-y:auto;background:#fff !important;color:#000 !important;border:1px solid #a0a0a0;width:600px;max-width:100%;padding:3px 5px;margin:6px 0;word-break:break-word}
+:root{color-scheme:dark;--bg:#0a0f1c;--hdr:64px;--panel:#424a4f;--panel2:#2f3539;--ink:#dfe5e8;--mute:#9aa6ad;--blue:#79b8ff;--orange:#f5a623;--green:#19e619;--red:#ff4a5a;--btn:#2b3135;--ruler:#17191c;box-sizing:border-box}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:'Chivo',system-ui,sans-serif;overflow:hidden}
+#hdr{position:fixed;left:0;top:0;width:100%;height:var(--hdr);background:#1b1f23;display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:1px solid #000;z-index:5}
+#hdr .logo{font-size:34px;line-height:1}
+#hdr .nm{font:700 17px 'Chivo',sans-serif;color:#e4e9ec}
+#hdr .sub{font-size:12px;color:var(--mute);line-height:1.35}
+#hdr .info{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#hdr .who{margin-left:auto;font-size:12px;color:var(--mute);display:flex;flex-direction:column;gap:3px}
+#hdr .who input{background:#2c3135;color:#fff;border:1px solid #3a4146;border-radius:3px;font:600 12px 'Chivo',sans-serif;padding:3px 6px;width:170px}
+@media(max-width:700px){#hdr .who{display:none}}
+#ruler{position:fixed;left:0;top:var(--hdr);width:100%;height:26px;background:var(--ruler);display:block}
+#wf{position:fixed;left:0;top:calc(var(--hdr) + 26px);width:100%;height:calc(100% - var(--hdr) - 26px);display:block;cursor:crosshair}
+#band{position:fixed;top:calc(var(--hdr) + 26px);bottom:0;background:rgba(255,255,255,.13);border-top:4px solid #a86b00;pointer-events:none}
+#line{position:fixed;top:var(--hdr);bottom:0;width:2px;background:#f22;pointer-events:none}
+#panel{position:fixed;right:max(12px,env(safe-area-inset-right,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));width:376px;max-width:calc(100% - 24px);background:var(--panel);border-radius:14px;padding:14px;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+#freq{width:86px;background:#16181a;color:#fff;border:0;border-radius:3px;font:600 17px 'Chivo',sans-serif;padding:3px 5px}
+#freq:focus{outline:2px solid var(--blue)}
+select{background:#1d2023;color:var(--red);border:1px solid #555;border-radius:3px;font:400 12px 'Chivo',sans-serif;padding:3px 4px}
+select#band-sel{width:96px}select#ext{width:112px}
+.ico{width:30px;height:30px;border-radius:50%;border:2px solid #cfd6da;background:transparent;color:#cfd6da;font:700 15px/1 'Chivo',sans-serif;cursor:pointer;padding:0}
+#play{width:26px;height:26px;border-color:#dfe5e8}
+#play.on{background:var(--green);border-color:var(--green);color:#052}
+.step{width:20px;height:20px;border-radius:50%;border:2px solid #cfd6da;background:none;color:#cfd6da;font:700 12px/1 'Chivo',sans-serif;cursor:pointer;padding:0}
+.step:hover,.ico:hover{border-color:var(--blue);color:var(--blue)}
+.chip{background:var(--btn);color:#dfe5e8;border:0;border-radius:4px;font:700 12px 'Chivo',sans-serif;padding:5px 8px;cursor:pointer}
+.chip.on{color:var(--green)}
+.chip:focus-visible,.ico:focus-visible,.step:focus-visible,.tab:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.modes{display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap}
+.tools{display:flex;gap:6px;margin-bottom:6px}
+.tool{flex:1;height:42px;background:#363d41;border:0;border-radius:5px;color:var(--orange);font-size:20px;cursor:pointer}
+.tool:hover{background:#40484d}
+.tabs{display:flex;justify-content:space-between;margin-bottom:8px}
+.tab{background:none;border:0;color:var(--blue);font:400 13px 'Chivo',sans-serif;padding:4px 6px;cursor:pointer;border-radius:3px}
+.tab.on{background:#31383c;color:#b9d8ff;font-weight:600}
+.pane{height:118px;overflow:auto;font-size:12px;line-height:1.5;background:#3b4347;border-radius:4px;padding:6px 8px}
+.pane label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:3px 0}
+.pane input[type=range]{width:200px}
+.rx{display:flex;gap:8px}.rx b{width:28px;color:var(--orange);font-weight:600}.rx.me b{color:var(--green)}
+.rx a{color:var(--blue)}.t{color:var(--orange)}
+#sm{position:relative;margin-top:8px;background:#222629;border-radius:4px;padding:2px 8px 4px}
+#sm .lab{display:flex;position:relative;height:13px;font-size:10px;font-weight:600;color:#cfd6da}
+#sm .lab span{position:absolute;transform:translateX(-50%)}
+#bar{height:7px;background:#111;position:relative}
+#bar i{position:absolute;left:0;top:0;bottom:0;background:var(--green);width:0}
+#dbm{position:absolute;right:8px;top:3px;font-size:11px;color:#cfd6da}
+#panel.off .body{display:none}
+#tip{position:fixed;left:12px;bottom:max(12px,env(safe-area-inset-bottom,0px));font-size:12px;color:var(--mute);background:rgba(10,15,28,.7);padding:6px 10px;border-radius:6px}
+@media(max-width:520px){#tip{display:none}}
 </style>
 </head>
 <body>
-<div id="ap" style="position:fixed;inset:0;z-index:1000;background:rgba(120,120,120,.55);cursor:pointer">
-  <div style="position:absolute;left:50px;top:62px;background:#c0c0c0;color:#000;border:1px solid #808080;padding:8px 20px;cursor:default">Click here to start audio: <button id="astart">start audio</button></div></div>
-<div id="infow" style="padding-bottom:10px"><p id="info" style="margin:6px 3px 0">This is a WebSDR receiver, located in <span id="loc">Budapest, Hungary</span>. It is operated by <span id="op">michaelnxdstan</span>.
-  More information about the WebSDR project can be found on <a href="http://websdr.org/" target="_blank" rel="noopener">http://websdr.org/</a>.</p></div>
-<hr>
-<div style="margin:4px 0 0 2px">Your name or callsign: <input type="text" id="name" size="25" maxlength="24">
-  RF gain <select id="rf"><option value="auto">auto</option><option>20</option><option>30</option><option>40</option></select>
-</div>
-<hr>
-<div class="top">
-  <div><span class="b"><b>View:</b>
-      <label><input type="radio" name="v" id="vw" checked>waterfall</label>
-      <label><input type="radio" name="v" id="vb">blind</label></span>
-    <span class="b"><b>Allow keyboard:</b> <input type="checkbox" id="kb"></span></div>
-  <div class="b"><b>Waterfall:</b>
-    <label class="java"><input type="radio" name="wj" disabled>Java</label>
-    <label class="html5"><input type="radio" name="wj" checked>HTML5</label>
-    &nbsp;<b>Sound:</b>
-    <label class="java"><input type="radio" name="sj" disabled>Java</label>
-    <label class="html5"><input type="radio" name="sj" checked>HTML5</label></div>
-</div>
-<canvas id="main" width="1024" height="200" style="margin:7px 0 0 3px"></canvas>
+<header id="hdr"><div class="logo" aria-hidden="true">📻</div>
+<div class="info"><div class="nm" id="rxName"></div><div class="sub" id="rxLoc"></div><div class="sub" id="rxAnt"></div></div>
+<label class="who">Your name or callsign:<input id="who" maxlength="16" spellcheck="false" autocomplete="off"></label></header>
+<canvas id="ruler"></canvas>
+<canvas id="wf"></canvas>
+<div id="band"></div><div id="line"></div>
+<div id="tip">Click the waterfall to tune · scroll to fine tune · press ▶ for audio (simulated band)</div>
 
-<div class="row">
-  <div class="b" style="width:498px">
-    <b>Frequency:</b> <input type="text" id="freq" size="12" style="width:105px"> kHz <span style="font-size:12px">(0 - 30 MHz)</span>
-    <div style="margin-top:5px"><button data-d="-3">---</button> <button data-d="-2">--</button> <button data-d="-1">-</button>
-      <button data-d="1">+</button> <button data-d="2">++</button> <button data-d="3">+++</button></div>
-    <small>Or tune by clicking/dragging on the frequency scale.</small>
-    <hr>
-    <b>Bandwidth:</b><br><span id="bwtxt"></span>
-    <div class="grid" id="bwg">
-      <button data-w="1">wider</button><button data-m="cw" data-b="800">CW-wide</button><button data-m="lsb" data-b="2700">LSB</button>
-      <button data-m="usb" data-b="2700">USB</button><button data-m="am" data-b="6000">AM</button>
-      <button data-m="amsync" data-b="6000">AMSYNC</button><button data-m="fm" data-b="15000">FM</button>
-      <button data-w="-1">narrower</button><button data-m="cw" data-b="250">CW-narrow</button><button data-m="lsb" data-b="1800">LSB-nrw</button>
-      <button data-m="usb" data-b="1800">USB-nrw</button><button data-m="am" data-b="4500">AM-nrw</button>
+<section id="panel" aria-label="Receiver controls">
+  <div class="body">
+  <div class="row">
+    <input id="freq" value="4612.00" inputmode="decimal" aria-label="Frequency in kHz">
+    <select id="band-sel" aria-label="Select band"><option value="">select band</option></select>
+    <select id="ext" aria-label="Extension"><option>extension</option><option>S-meter</option><option>Waterfall</option><option>Noise filter</option></select>
+    <button class="ico" id="play" aria-label="Start audio">▶</button>
+  </div>
+  <div class="row" style="gap:6px">
+    <button class="chip" id="autoBtn" style="border-radius:50%;background:#14c4c4;color:#fff;width:22px;height:22px;padding:0" title="Auto-scroll">A</button>
+    <button class="chip" id="mute" style="width:22px;height:22px;padding:0;color:var(--green)" title="Mute">9</button>
+    <button class="step" data-s="-100">−</button><button class="step" data-s="-10">−</button><button class="step" data-s="-1">−</button>
+    <button class="step" data-s="1">+</button><button class="step" data-s="10">+</button><button class="step" data-s="100">+</button>
+    <button class="chip" id="spec" style="margin-left:auto">Spec</button>
+    <button class="ico" id="reset" style="width:24px;height:24px;border:0;color:#ff4d79;font-size:18px" title="Reset" aria-label="Reset view">↻</button>
+  </div>
+  <div class="modes" id="modes">
+    <button class="chip" data-m="am">AM</button><button class="chip" data-m="sam">SAM</button><button class="chip" data-m="drm">DRM</button><button class="chip" data-m="lsb">LSB</button><button class="chip on" data-m="usb">USB</button><button class="chip" data-m="cw">CW</button><button class="chip" data-m="nbfm">NBFM</button><button class="chip" data-m="iq">IQ</button>
+  </div>
+  <div class="tools">
+    <button class="tool" id="zin" aria-label="Zoom in">⊕</button>
+    <button class="tool" id="zout" aria-label="Zoom out">⊖</button>
+    <button class="tool" id="zmax" aria-label="Zoom to passband">⤡</button>
+    <button class="tool" id="zall" aria-label="Full 0–30 MHz">⤢</button>
+    <button class="tool" id="tl" aria-label="Tune down" style="color:#cfd6da">‹</button>
+    <button class="tool" id="tr" aria-label="Tune up" style="color:#cfd6da">›</button>
+  </div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button class="tab" data-p="rf">RF</button><button class="tab" data-p="wf">WF</button><button class="tab" data-p="aud">AUD</button><button class="tab" data-p="agc">AGC</button><button class="tab on" data-p="user">User</button><button class="tab" data-p="stat">Stat</button><button class="tab" data-p="off">Off</button>
+  </div>
+  <div class="body">
+    <div class="pane" id="pane"></div>
+    <div id="sm">
+      <div class="lab" id="lab"></div>
+      <div id="bar"><i id="barfill"></i></div>
+      <div id="dbm">-92 dBm</div>
     </div>
-    <small style="margin-top:8px">Or drag the passband edges on the frequency scale.</small>
-    <hr><b>Memories:</b>
-    <div style="margin-top:6px"><button id="recall" disabled>recall</button><button id="erase" disabled>erase</button>
-      <button id="store">store</button> <select id="mem"><option value="-1">(new)</option></select></div>
   </div>
-
-  <div class="b" style="width:200px">
-    <b>Waterfall view:</b>
-    <div style="margin-top:6px"><button id="zo">zoom out</button> <button id="zi">zoom in</button></div>
-    <div style="margin-top:4px"><button id="mo">max out</button> <button id="mi">max in</button></div>
-    <small>Click to tune, drag to pan, scroll wheel to zoom.</small>
-    <div style="margin-top:6px">Speed: <select id="spd"><option value="250">slow</option><option value="100" selected>medium</option><option value="40">fast</option></select></div>
-    <div>Size: <select id="siz"><option value="60">small</option><option value="100" selected>medium</option><option value="160">large</option></select></div>
-    <div>View: <select id="vws"><option>waterfall</option><option>spectrum</option></select></div>
-  </div>
-
-  <div class="b" style="width:250px">
-    <canvas id="sm" width="250" height="72"></canvas>
-    <div id="smt" style="margin:2px 0 0 8px">&nbsp;</div>
-    <label><input type="checkbox" id="mute">mute</label>
-    <label><input type="checkbox" id="sq">squelch</label>
-    <label><input type="checkbox" id="an">autonotch</label>
-    <div>Volume: <input type="range" id="vol" min="0" max="1" step="0.01" style="width:130px;vertical-align:middle"></div>
-    <hr><b>Audio recording:</b> <button id="rec">start</button>
-    <div id="recinfo" style="font-size:13px;margin-top:4px;word-break:break-all"></div>
-    <hr><b>Signal strength plot:</b> <select id="plot"><option>none</option><option>slow</option><option>fast</option></select>
-    <canvas id="pl" width="250" height="40" style="display:none;margin-top:4px"></canvas>
-  </div>
-
-  <div class="b" id="log" style="width:468px">
-    <b>Logbook:</b>
-    <div style="margin-top:6px">Call of station that you hear: <input type="text" id="lc" size="14"></div>
-    <div style="margin-top:6px">Comments, if any: <input type="text" id="lm" style="width:240px"> <button id="ls">submit</button></div>
-    <small style="font-size:12px;margin-top:6px">Note: time, frequency, your name/call, and receiver information are added automatically.</small>
-    <small style="font-size:12px">View the <a href="#" id="l20">last 20 lines of the logbook</a>, or the <a href="#" id="lall">entire logbook</a>.</small>
-  </div>
-</div>
-
-<hr style="margin-top:14px">
-<div>This WebSDR is currently being used by <span id="ucnt">1</span> user(s) simultaneously: &nbsp; <label><input type="checkbox" id="cmp">compact view</label></div>
-<canvas id="ovw" width="1024" height="57" style="margin:12px 0 0 3px;max-width:100%"></canvas>
-<hr id="hr2" style="margin-top:14px">
-<div id="chat"><b>Chatbox:</b><br>
-  <span style="font-size:14px">This chatbox is intended to discuss the operation of the WebSDR.<br>
-  The operators of this site disclaim any responsibility for text appearing in this chatbox.</span>
-  <div id="chatlog"></div><input type="text" id="ci" style="width:400px" maxlength="200"></div>
+</section>
 
 <script>
-(() => {
-const D={rtlTcp:{host:"127.0.0.1",port:1234},wsUrl:"",frequencyMHz:10.1,mode:"am",sampleRate:1200000,gainMode:"auto",gainDb:30,ppm:0,volume:.7,deemphasisUs:50,autoConnect:true};
-const C=Object.assign({},D,window.RTL_CONFIG||{}),$=i=>document.getElementById(i),SR=C.sampleRate,PI=Math.PI;
-const target=()=>C.wsUrl||`ws://${C.rtlTcp.host}:${C.rtlTcp.port}`;
-let f=Math.max(0,Math.min(3e4,C.frequencyMHz*1000)),fc=f,inv=false,vcs=f,mode=C.mode==="am"?"am":"fm",bw=C.mode==="wfm"?2e5:C.mode==="nfm"?15000:6000,zoom=0;
-let ws=null,gotH=false,head=new Uint8Array(0),carry=-1,actx=null,gn=null,nextT=0,wfH=100,db=-120,peak=-120,flo=-60,mm=0,lastT=0,lastRow=null,medS=-60,medOK=false,hx=null,tags=[];
-let chatQueue=[];
-let activeUsers=[];
-const st=()=>mode==="fm"?(bw>=1e5?[50,100,1000]:[5,12.5,100]):mode==="am"||mode==="amsync"?[1,9,100]:[.1,1,10];
-const store=(k,v)=>{try{if(v===undefined)return JSON.parse(localStorage.getItem(k));localStorage.setItem(k,JSON.stringify(v))}catch(e){return null}};
-if(C.stationLocation)$("loc").textContent=C.stationLocation;if(C.operator)$("op").textContent=C.operator;
-{const nm=store("rtlname");$("name").value=typeof nm==="string"&&nm?nm:"Anon"+(100000+Math.floor(Math.random()*899999))}
-store("rtlname",$("name").value);
-$("name").oninput=()=>{store("rtlname",$("name").value);ov();sendPresence()};
-$("vol").value=C.volume; $("rf").value=C.gainMode==="manual"?String(C.gainDb):"auto";
+/* Built-in defaults. config.json (same folder) overrides them; server.json holds the current tunnel link. */
+const DEFAULTS={"title":"0–30 MHz Receiver","receiver":{"name":"SimTX SDR","location":"Budapest, Hungary","antenna":"EFHW 49:1"},"maxKHz":30000,"startFreqKHz":4612,"startMode":"usb","volume":0.7,"agc":true,"wfMinDb":-125,"wfMaxDb":-65,"wfIntervalMs":45,"colormap":["#000000", "#0000FF", "#00FFFF", "#00FF00", "#FFFF00", "#FF0000", "#FF00FF", "#FFFFFF"],"user":{"name":"mike","sessionSeconds":1800},"passbands":{"am":[-4.5,4.5],"sam":[-4.5,4.5],"drm":[-5,5],"lsb":[-2.7,0],"usb":[0,2.7],"cw":[-0.25,0.25],"nbfm":[-6,6],"iq":[-5,5]},"bands":[["LW 153–279",216],["MW 531–1602",1000],["120m 2300–2495",2400],["90m 3200–3400",3300],["75m 3900–4000",3950],["60m 4750–5060",4900],["49m 5900–6200",6000],["40m 7000–7200",7100],["31m 9400–9900",9600],["25m 11600–12100",11800],["20m 14000–14350",14100],["19m 15100–15800",15400],["17m 18068–18168",18100],["15m 21000–21450",21100],["13m 21450–21850",21600],["10m 28000–29700",28300]],"seed":7,"randomStations":90,"stations":[{"f":4609.7,"p":-62,"t":"c"},{"f":4612,"p":-62,"t":"c"},{"f":4614.2,"p":-62,"t":"c"},{"f":4635.5,"p":-70,"t":"d"}],"source":{"type":"rtltcp","host":"193.24.208.6","port":1240,"wsUrl":"auto","wsPath":"/rtl","sampleRate":250000,"directSampling":2,"upconverterKHz":0,"ppm":0,"fftSize":4096,"dbOffset":-40}};
+const isObj=x=>x&&typeof x==='object'&&!Array.isArray(x);
+const merge=(a,b)=>{const o={...a};for(const k in b)o[k]=isObj(a[k])&&isObj(b[k])?merge(a[k],b[k]):b[k];return o};
+async function linkBase(){ /* tunnel link from server.json, else the server that served this page (bridge) */
+ try{const r=await fetch('server.json?_='+Date.now(),{cache:'no-store'});
+  if(r.ok){const j=await r.json(),u=String(j.url||'').trim().replace(/\/+$/,'');if(/^https?:\/\/[^\s/]+/i.test(u)&&!/YOUR-TUNNEL/i.test(u))return u}}catch(e){}
+ return /^https?:$/.test(location.protocol)?location.origin:'http://localhost:8080'} /* opened from disk (file://): use the local bridge */
+function boot(){
+const C=window.RX_CONFIG;document.title=C.title;
+const $=id=>document.getElementById(id);
+const MAXK=C.maxKHz, wf=$('wf'), ctx=wf.getContext('2d',{willReadFrequently:false}), rul=$('ruler'), rctx=rul.getContext('2d');
+const S={f:C.startFreqKHz,mode:C.startMode,z:0,cf:C.maxKHz/2,vol:C.volume,min:C.wfMinDb,max:C.wfMaxDb,rf:0,agc:C.agc,audio:false,muted:false,auto:true,sig:-120};
+const SRC=C.source||{},LIVE=SRC.type==='rtltcp',SR=SRC.sampleRate||250000,FULL=LIVE?SR/1000:MAXK;
+let hc=LIVE?Math.max(FULL/2,Math.min(MAXK-FULL/2,C.startFreqKHz+FULL/4)):MAXK/2; /* hardware centre (kHz) */
+const BW=C.passbands;
+const BANDS=C.bands;
+BANDS.forEach(b=>{const o=document.createElement('option');o.value=b[1];o.textContent=b[0];$('band-sel').appendChild(o)});
 
-function getDeviceType(){
-  const ua=navigator.userAgent||"";
-  if(/iPad|Tablet|PlayBook|Silk|(Android(?!.*Mobile))/i.test(ua))return "Tablet";
-  if(/Mobile|iPhone|iPod|Android|BlackBerry|IEMobile|Opera Mini/i.test(ua))return "Phone";
-  return "Desktop";
+/* simulated band: seeded stations */
+let seed=C.seed;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+const ST=C.stations.map(x=>({...x}));
+for(let i=0;i<C.randomStations;i++){const f=150+rnd()*(C.maxKHz-200);ST.push({f,p:-100+rnd()*46,t:rnd()<.25?'c':'a',ph:rnd()*6})}
+ST.sort((a,b)=>a.f-b.f);
+
+function view(){const span=FULL/Math.pow(2,S.z),b=hc-FULL/2;let s=(S.z?S.cf:hc)-span/2;s=Math.max(b,Math.min(b+FULL-span,s));return{s,span}}
+function level(f,t,span){ if(LIVE)return specAt(f,span); /* dB at freq f (kHz) */
+  let lin=Math.pow(10,(-117+11*Math.exp(-f/5000)+(Math.random()-.5)*5)/10);
+  const w=Math.max(span/1500,.4);
+  for(const s of ST){const d=f-s.f;if(d<-8||d>8)continue;
+    const fade=.75+.25*Math.sin(t/900+(s.ph||0));
+    let p;
+    if(s.t==='c')p=s.p-Math.min(60,Math.abs(d)*14/w*.15);
+    else if(s.t==='d')p=Math.abs(d)<5?s.p-6+Math.random()*10:-200;
+    else{const a=Math.abs(d);p=a<.35?s.p:(a<4.6?s.p-18-Math.random()*7:s.p-55)}
+    lin+=Math.pow(10,(p+10*Math.log10(fade)-S.rf)/10)}
+  return 10*Math.log10(lin)}
+
+/* colormap */
+const LUT=new Uint8ClampedArray(256*3);
+(function(){const st=C.colormap.map((c,i,a)=>typeof c==='string'?[i/(a.length-1),parseInt(c.slice(1,3),16),parseInt(c.slice(3,5),16),parseInt(c.slice(5,7),16)]:c);
+for(let i=0;i<256;i++){const v=i/255;let k=0;while(k<st.length-2&&v>st[k+1][0])k++;
+const a=st[k],b=st[k+1],u=(v-a[0])/(b[0]-a[0]);for(let c=0;c<3;c++)LUT[i*3+c]=a[c+1]+(b[c+1]-a[c+1])*Math.max(0,Math.min(1,u))}})();
+
+let W=0,H=0;
+function resize(){const dpr=1;W=wf.width=innerWidth;H=wf.height=innerHeight-HDR-26;rul.width=innerWidth;rul.height=26;ctx.fillStyle='#000000';ctx.fillRect(0,0,W,H);drawRuler();place()}
+function fmt(k){return k>=1000?(k/1000).toFixed(k%1000===0?0:3):k}
+function drawRuler(){const{s,span}=view();rctx.fillStyle='#17191c';rctx.fillRect(0,0,rul.width,26);
+ rctx.font='600 12px Chivo,sans-serif';rctx.textAlign='center';rctx.fillStyle='#c8cfd3';rctx.strokeStyle='#777';
+ const steps=[1,2,5,10,20,50,100,200,500,1000,2000,5000];let st=steps.find(x=>x>=span/8)||5000;
+ const first=Math.ceil(s/st)*st;
+ for(let f=first;f<=s+span;f+=st){const x=(f-s)/span*W;rctx.beginPath();rctx.moveTo(x,18);rctx.lineTo(x,26);rctx.stroke();
+  rctx.fillText(Math.round(f).toLocaleString('fr-FR'),x,13)}}
+function x_of(f){const{s,span}=view();return(f-s)/span*W}
+function place(){const[a,b]=BW[S.mode];let x1=x_of(S.f+a),x2=x_of(S.f+b);if(x2-x1<3){const m=(x1+x2)/2;x1=m-1.5;x2=m+1.5}
+ const bd=$('band').style;bd.left=x1+'px';bd.width=(x2-x1)+'px';$('line').style.left=(x_of(S.f)-1)+'px'}
+
+function setF(f,keep){S.f=Math.max(1,Math.min(MAXK-1,f));retune();$('freq').value=S.f.toFixed(2);
+ const{s,span}=view();if(S.z>0&&(S.f<s+span*.05||S.f>s+span*.95)||S.auto&&S.z>0&&!keep)S.cf=S.f;
+ drawRuler();place();userList();audioUpdate()}
+
+/* waterfall loop */
+let last=0,vkey='';
+function frame(t){requestAnimationFrame(frame);
+ if(t-last<C.wfIntervalMs)return;last=t;
+ if(LIVE&&!computeSpec())return;
+ const{s,span}=view();const k=s+'|'+span+'|'+W;if(k!==vkey){vkey=k;ctx.fillStyle='#000000';ctx.fillRect(0,0,W,H);drawRuler();place()}
+ ctx.drawImage(wf,0,0,W,H-1,0,1,W,H-1);
+ const row=ctx.createImageData(W,1),d=row.data,rg=S.max-S.min;
+ for(let x=0;x<W;x++){const f=s+(x+.5)/W*span;let v=(level(f,t,span)-S.min)/rg;v=Math.max(0,Math.min(1,v));const i=(v*255)|0;
+  d[x*4]=LUT[i*3];d[x*4+1]=LUT[i*3+1];d[x*4+2]=LUT[i*3+2];d[x*4+3]=255}
+ ctx.putImageData(row,0,0);
+ meter(t)}
+
+/* S-meter */
+const MARKS=[['S1',-121],['S3',-109],['S5',-97],['S7',-85],['S9',-73],['+10',-63],['+20',-53],['+40',-33],['+60',-13]];
+const pos=d=>Math.max(0,Math.min(100,(d+127)/117*100));
+MARKS.forEach(m=>{const s=document.createElement('span');s.textContent=m[0];s.style.left=pos(m[1])+'%';$('lab').appendChild(s)});
+function meter(t){const[a,b]=BW[S.mode];let sum=0,n=0;for(let i=0;i<5;i++){sum+=Math.pow(10,level(S.f+a+(b-a)*i/4,t,1)/10);n++}
+ const raw=LIVE?bandPower(S.f+a,S.f+b):10*Math.log10(sum/n);S.sig+=(raw-S.sig)*.35;
+ $('barfill').style.width=pos(S.sig)+'%';$('dbm').textContent=Math.round(S.sig)+' dBm'}
+
+/* user/panes */
+const t0=Date.now();
+function hms(s){return Math.floor(s/3600)+':'+String(Math.floor(s/60)%60).padStart(2,'0')+':'+String(s%60).padStart(2,'0')}
+function userList(){if(S.pane!=='user')return;const el=(Date.now()-t0)/1000|0,left=C.user.sessionSeconds-el%C.user.sessionSeconds;
+ let h=`<div class="rx me"><b>RX0</b><span>"${USER}"</span></div><div class="rx" style="margin-left:36px"><a href="#">${S.f.toFixed(2)} kHz ${S.mode} z${S.z}</a> <span>${hms(el)}</span> <span class="t">${hms(left)} act</span></div>`;
+ for(let i=1;i<8;i++)h+=`<div class="rx"><b>RX${i}</b></div>`;$('pane').innerHTML=h}
+function pane(p){S.pane=p;document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+ $('panel').classList.toggle('off',p==='off');const el=$('pane');
+ if(p==='user')return userList();
+ const sl=(l,id,mn,mx,v,st)=>`<label>${l}<input type="range" id="${id}" min="${mn}" max="${mx}" step="${st||1}" value="${v}"></label>`;
+ if(p==='rf')el.innerHTML=sl('Attenuation (dB)','rfA',0,40,S.rf);
+ else if(p==='wf')el.innerHTML=sl('Min dB','wMin',-150,-90,S.min)+sl('Max dB','wMax',-80,-20,S.max);
+ else if(p==='aud')el.innerHTML=sl('Volume','vol',0,100,S.vol*100);
+ else if(p==='agc')el.innerHTML=`<label>AGC on <input type="checkbox" id="agcC" ${S.agc?'checked':''}></label><div style="color:var(--mute)">Keeps audio level steady on fading signals.</div>`;
+ else if(p==='stat')el.innerHTML=`Passband: ${BW[S.mode][0]} to ${BW[S.mode][1]} kHz<br>Span: ${(view().span/1000).toFixed(3)} MHz<br>Range: 0–30 MHz<br>Audio: ${ac?ac.state:'off'}<br>Source: ${LIVE?'RTL-TCP ('+STATUS+')':'simulated band'}`;
+ const g=id=>$(id);
+ g('rfA')&&(g('rfA').oninput=e=>S.rf=+e.target.value);
+ g('wMin')&&(g('wMin').oninput=e=>S.min=+e.target.value);g('wMax')&&(g('wMax').oninput=e=>S.max=+e.target.value);
+ g('vol')&&(g('vol').oninput=e=>{S.vol=e.target.value/100;audioUpdate()});
+ g('agcC')&&(g('agcC').onchange=e=>S.agc=e.target.checked)}
+setInterval(userList,1000);
+
+/* audio */
+let ac,nodes;
+function startAudio(){ac=new (window.AudioContext||window.webkitAudioContext)();if(LIVE){startLive();return}
+ const buf=ac.createBuffer(1,ac.sampleRate*2,ac.sampleRate),d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+ const src=ac.createBufferSource();src.buffer=buf;src.loop=true;
+ const hp=ac.createBiquadFilter(),lp=ac.createBiquadFilter();hp.type='highpass';lp.type='lowpass';
+ const ng=ac.createGain(),osc=ac.createOscillator(),og=ac.createGain(),mg=ac.createGain();
+ osc.type='sine';osc.start();src.start();
+ src.connect(hp);hp.connect(lp);lp.connect(ng);ng.connect(mg);osc.connect(og);og.connect(mg);mg.connect(ac.destination);
+ nodes={hp,lp,ng,osc,og,mg};audioUpdate()}
+function audioUpdate(){if(!nodes)return;if(LIVE){dspSetup();nodes.mg.gain.setTargetAtTime(S.muted?0:S.vol,ac.currentTime,.03);return}const m=S.mode,[a,b]=BW[m],T=ac.currentTime;
+ const bw=(b-a)*1000;nodes.hp.frequency.setTargetAtTime(m==='cw'?500:300,T,.02);nodes.lp.frequency.setTargetAtTime(Math.min(m==='cw'?900:Math.max(bw,600),5000),T,.02);
+ let pitch=0,amp=0;
+ for(const s of ST){const d=s.f-S.f;if(d<a-.3||d>b+.3)continue;
+  const lv=s.p+(S.agc?0:-S.rf),g=Math.max(0,Math.min(1,(lv+110)/50));
+  if(m==='usb'||m==='lsb')pitch=Math.abs(d)*1000||300;else if(m==='cw')pitch=700+d*1000;else pitch=440;
+  if(g>amp)amp=g}
+ nodes.osc.frequency.setTargetAtTime(Math.max(50,pitch||440),T,.02);
+ nodes.og.gain.setTargetAtTime(amp*.5,T,.05);
+ const nz=Math.max(.02,Math.min(.35,(S.sig+125)/180))*(S.agc?.8:1);nodes.ng.gain.setTargetAtTime(nz*.5,T,.05);
+ nodes.mg.gain.setTargetAtTime(S.muted?0:S.vol,T,.03)}
+setInterval(audioUpdate,300);
+function setPlay(on,user){
+ if(on){if(!ac)startAudio();else ac.resume();S.audio=true}
+ else{if(ac)ac.suspend();S.audio=false}
+ if(user)S.userPaused=!on;
+ $('play').classList.toggle('on',S.audio);$('play').textContent=S.audio?'■':'▶'}
+$('play').onclick=()=>setPlay(!S.audio,true);
+/* browsers only allow sound after a click/key press: auto-start tries on connect, the first interaction unlocks it */
+['pointerdown','keydown','touchend'].forEach(ev=>addEventListener(ev,()=>{if(S.audio&&ac&&ac.state==='suspended')ac.resume()},{passive:true}));
+$('mute').onclick=()=>{S.muted=!S.muted;$('mute').style.color=S.muted?'#f66':'var(--green)';audioUpdate()};
+
+/* ===== RTL-TCP live source (via bridge.js WebSocket) ===== */
+const N=SRC.fftSize||4096,OFS=SRC.dbOffset??-40;
+const rRe=new Float32Array(N),rIm=new Float32Array(N),SP=new Float32Array(N).fill(-150);
+const win=new Float32Array(N),fr=new Float32Array(N),fi=new Float32Array(N),cosT=new Float32Array(N/2),sinT=new Float32Array(N/2);
+let rp=0,have=false,STATUS='simulated',wsum=0,ws=null,got=false,carry=-1,dsp=null;
+for(let i=0;i<N;i++){win[i]=.5-.5*Math.cos(2*Math.PI*i/N);wsum+=win[i]}
+for(let i=0;i<N/2;i++){cosT[i]=Math.cos(2*Math.PI*i/N);sinT[i]=-Math.sin(2*Math.PI*i/N)}
+function fft(re,im){
+ for(let i=1,j=0;i<N;i++){let bit=N>>1;for(;j&bit;bit>>=1)j^=bit;j^=bit;if(i<j){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+ for(let len=2;len<=N;len<<=1){const h=len>>1,st=N/len;
+  for(let i=0;i<N;i+=len)for(let k=0;k<h;k++){const wr=cosT[k*st],wi=sinT[k*st],a=i+k,b=a+h,xr=re[b]*wr-im[b]*wi,xi=re[b]*wi+im[b]*wr;re[b]=re[a]-xr;im[b]=im[a]-xi;re[a]+=xr;im[a]+=xi}}}
+function computeSpec(){if(!have)return false;
+ for(let i=0;i<N;i++){const k=(rp+i)&(N-1);fr[i]=rRe[k]*win[i];fi[i]=rIm[k]*win[i]}
+ fft(fr,fi);
+ for(let i=0;i<N;i++){const j=(i+N/2)&(N-1),d=10*Math.log10((fr[j]*fr[j]+fi[j]*fi[j])/(wsum*wsum)+1e-20)+OFS;SP[i]+=(d-SP[i])*.6}
+ return true}
+const binOf=f=>Math.round(((f-hc)/FULL+.5)*N);
+function specAt(f,span){const i=binOf(f);if(i<0||i>=N)return -150;const w=Math.round((span/W)/(FULL/N)/2);let m=-200;
+ for(let k=Math.max(0,i-w);k<=Math.min(N-1,i+w);k++)if(SP[k]>m)m=SP[k];return m}
+function bandPower(f1,f2){let a=Math.max(0,binOf(f1)),b=Math.min(N-1,binOf(f2));if(b<a)b=a;let p=0;for(let k=a;k<=b;k++)p+=Math.pow(10,SP[k]/10);return 10*Math.log10(p+1e-20)}
+
+function cmd(c,v){if(ws&&ws.readyState===1){const d=new DataView(new ArrayBuffer(5));d.setUint8(0,c);d.setUint32(1,v>>>0,false);ws.send(d.buffer)}}
+function hwTune(){cmd(1,Math.round((hc+(SRC.upconverterKHz||0))*1000))}
+function setStatus(t){STATUS=t;$('tip').textContent='RTL-TCP · '+t}
+async function connect(){
+ setStatus('reading server.json…');got=false;carry=-1;
+ let url=SRC.wsUrl&&SRC.wsUrl!=='auto'?SRC.wsUrl:'';
+ if(!url){const base=await linkBase();
+  if(!base){setStatus('no server link: put your tunnel URL in server.json');setTimeout(connect,10000);return}
+  url=base.replace(/^http/i,'ws')+(SRC.wsPath||'/rtl')}
+ setStatus('connecting…');
+ try{ws=new WebSocket(url)}catch(e){setStatus('bad WebSocket URL');setTimeout(connect,10000);return}
+ ws.binaryType='arraybuffer';
+ ws.onopen=()=>{setStatus('connected');cmd(2,SR);cmd(9,SRC.directSampling??2);cmd(3,0);cmd(8,1);cmd(5,SRC.ppm||0);hwTune();if(C.autoAudio!==false&&!S.userPaused)setPlay(true)};
+ ws.onmessage=e=>{let u=new Uint8Array(e.data);if(!got){got=true;if(u.length>=12&&u[0]===82&&u[1]===84&&u[2]===76&&u[3]===48)u=u.subarray(12)}BYTES+=u.length;onIQ(u)};
+ ws.onclose=()=>{setStatus('disconnected, retrying…');setTimeout(connect,3000)};
+ ws.onerror=()=>ws.close()}
+function retune(){if(!LIVE)return;
+ if(S.f<hc-FULL/2*.85||S.f>hc+FULL/2*.85){hc=Math.max(FULL/2,Math.min(MAXK-FULL/2,S.f+FULL/4));hwTune();S.cf=S.f;SP.fill(-150)}}
+
+/* DSP: NCO mix -> boxcar decimate -> passband mix -> FIR -> demod -> AGC -> ring */
+const AM=65535,aR=new Float32Array(65536);let wp=0,rpA=0;
+function onIQ(u){let i=0,n=u.length;if(carry>=0&&n){iq(carry,u[0]);carry=-1;i=1}
+ for(;i+1<n;i+=2)iq(u[i],u[i+1]);if(i<n)carry=u[i];have=true}
+function iq(b0,b1){const re=(b0-127.5)/127.5,im=(b1-127.5)/127.5;
+ rRe[rp]=re;rIm[rp]=im;rp=(rp+1)&(N-1);
+ const D=dsp;if(!D)return;
+ D.acR+=re*D.c+im*D.s;D.acI+=im*D.c-re*D.s;
+ const c=D.c*D.wc-D.s*D.ws;D.s=D.c*D.ws+D.s*D.wc;D.c=c;
+ if(++D.k>=8192){D.k=0;const m=Math.hypot(D.c,D.s);D.c/=m;D.s/=m}
+ if(++D.n<D.D)return;D.n=0;const yr=D.acR/D.D,yi=D.acI/D.D;D.acR=D.acI=0;stage(D,yr,yi)}
+function stage(D,yr,yi){
+ D.p2=(D.p2+D.w2)%6.283185307;const c2=Math.cos(D.p2),s2=Math.sin(D.p2);
+ const L=D.L;let fp=D.fp;D.fR[fp]=yr*c2+yi*s2;D.fI[fp]=yi*c2-yr*s2;
+ let oR=0,oI=0;for(let k=0,j=fp;k<L;k++){oR+=D.h[k]*D.fR[j];oI+=D.h[k]*D.fI[j];if(--j<0)j=L-1}
+ D.fp=(fp+1)%L;
+ let d;const m=D.m;
+ if(m==='usb'||m==='lsb')d=oR*c2-oI*s2;
+ else if(m==='cw'){D.p3=(D.p3+D.w3)%6.283185307;d=oR*Math.cos(D.p3)-oI*Math.sin(D.p3)}
+ else if(m==='nbfm'){d=Math.atan2(oI*D.pr-oR*D.pq,oR*D.pr+oI*D.pq)/Math.PI*2;D.pr=oR;D.pq=oI}
+ else if(m==='iq')d=oR;
+ else{d=Math.hypot(oR,oI);D.dc+=(d-D.dc)*.002;d-=D.dc}
+ const a=Math.abs(d);D.env+=(a-D.env)*(a>D.env?.02:.0003);
+ const g=S.agc?.3/Math.max(D.env,.003):30;
+ aR[wp++&AM]=Math.max(-1,Math.min(1,d*g))}
+function dspSetup(){if(!LIVE||!nodes)return;
+ const m=S.mode,[lo,hi]=BW[m],pc=(lo+hi)/2*1000,hb=(hi-lo)/2*1000,Dn=Math.max(1,Math.round(SR/32000)),rate=SR/Dn,off=(S.f-hc)*1000;
+ const key=[m,off,SR].join();if(dsp&&dsp.key===key)return;
+ let L=Math.round(rate/hb*1.6)|1;L=Math.max(31,Math.min(255,L))|1;
+ const h=new Float32Array(L),mid=(L-1)/2,fc=hb/rate;let sum=0;
+ for(let k=0;k<L;k++){const x=k-mid,sc=x===0?2*fc:Math.sin(2*Math.PI*fc*x)/(Math.PI*x);h[k]=sc*(.54-.46*Math.cos(2*Math.PI*k/(L-1)));sum+=h[k]}
+ for(let k=0;k<L;k++)h[k]/=sum;
+ const w=2*Math.PI*off/SR,o=dsp;
+ dsp={key,m,D:Dn,rate,h,L,fR:new Float32Array(L),fI:new Float32Array(L),fp:0,c:o?o.c:1,s:o?o.s:0,wc:Math.cos(w),ws:Math.sin(w),
+  n:0,k:0,acR:0,acI:0,p2:0,w2:2*Math.PI*pc/rate,p3:0,w3:2*Math.PI*700/rate,pr:1,pq:0,dc:0,env:.05}}
+function startLive(){
+ ac.resume();
+ const sp=ac.createScriptProcessor(2048,1,1),mg=ac.createGain();
+ sp.onaudioprocess=e=>{const out=e.outputBuffer.getChannelData(0),rate=dsp?dsp.rate:32000,st=rate/ac.sampleRate;
+  if(wp-rpA>rate*.5)rpA=wp-rate*.1;
+  for(let i=0;i<out.length;i++){if(wp-rpA<2){out[i]=0;continue}const k=Math.floor(rpA),f=rpA-k;out[i]=aR[k&AM]*(1-f)+aR[(k+1)&AM]*f;rpA+=st}};
+ sp.connect(mg);mg.connect(ac.destination);nodes={mg,sp};dspSetup();audioUpdate()}
+
+/* receiver info, wheel zoom, arrow keys */
+const HDR=64,R=C.receiver||{};let USER=C.user.name,BYTES=0,lastB=0;
+$('rxName').textContent=R.name||'';$('rxLoc').textContent=R.location||'';$('rxAnt').textContent=R.antenna?'Antenna: '+R.antenna:'';
+if(R.name)document.title=R.name;
+$('who').value=USER.toUpperCase();$('who').oninput=e=>{USER=e.target.value||'anon';userList()};
+wf.addEventListener('wheel',e=>{e.preventDefault();const fc=fAt(e.clientX),nz=Math.max(0,Math.min(10,S.z+(e.deltaY<0?1:-1)));if(nz===S.z)return;
+ S.z=nz;const span=FULL/Math.pow(2,nz);S.cf=fc-(e.clientX/W)*span+span/2;drawRuler();place();userList()},{passive:false});
+addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SELECT'||t==='TEXTAREA')return;
+ const k={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[e.key];if(!k)return;e.preventDefault();
+ setF(Math.round((S.f+k*(e.shiftKey?1:.1))*100)/100,true)});
+setInterval(()=>{if(!LIVE||STATUS!=='connected')return;const kb=Math.round((BYTES-lastB)/1024);lastB=BYTES;
+ $('tip').textContent='RTL-TCP · connected · '+kb+' kB/s · '+(ac&&ac.state==='suspended'&&S.audio?'audio waiting: click the page':'audio '+(ac?ac.state:'off'))},1000);
+
+/* interactions */
+function fAt(x){const{s,span}=view();return s+x/W*span}
+wf.addEventListener('click',e=>setF(Math.round(fAt(e.clientX)*10)/10,true));
+
+$('freq').addEventListener('keydown',e=>{if(e.key==='Enter'){const v=parseFloat($('freq').value.replace(',','.'));if(v>0&&v<MAXK){S.cf=v;setF(v)}e.target.blur()}});
+document.querySelectorAll('.step').forEach(b=>b.onclick=()=>setF(S.f+ +b.dataset.s,true));
+$('modes').onclick=e=>{const m=e.target.dataset.m;if(!m)return;S.mode=m;document.querySelectorAll('#modes .chip').forEach(c=>c.classList.toggle('on',c.dataset.m===m));place();audioUpdate();userList()};
+$('band-sel').onchange=e=>{if(e.target.value){S.cf=+e.target.value;setF(+e.target.value)}};
+function zoom(z){S.z=Math.max(0,Math.min(10,z));S.cf=S.f;drawRuler();place();userList()}
+$('zin').onclick=()=>zoom(S.z+1);$('zout').onclick=()=>zoom(S.z-1);$('zmax').onclick=()=>zoom(8);$('zall').onclick=()=>zoom(0);
+$('tl').onclick=()=>setF(S.f-view().span/10,true);$('tr').onclick=()=>setF(S.f+view().span/10,true);
+$('reset').onclick=()=>{S.z=0;S.cf=C.startFreqKHz;setF(C.startFreqKHz);S.rf=0;S.min=C.wfMinDb;S.max=C.wfMaxDb};
+$('autoBtn').onclick=()=>{S.auto=!S.auto;$('autoBtn').style.opacity=S.auto?1:.4};
+$('spec').onclick=()=>$('spec').classList.toggle('on');
+$('tabs').onclick=e=>{if(e.target.dataset.p)pane(e.target.dataset.p)};
+$('tabs').addEventListener('dblclick',()=>{});
+addEventListener('resize',resize);
+
+$('freq').value=S.f.toFixed(2);document.querySelectorAll('#modes .chip').forEach(c=>c.classList.toggle('on',c.dataset.m===S.mode));resize();pane('user');setF(C.startFreqKHz);requestAnimationFrame(frame);if(LIVE)connect();
 }
-const DEVICE_TYPE=getDeviceType();
-
-// ---------- rtl_tcp & auto-reconnect
-const cmd=(c,v)=>{if(ws&&ws.readyState===WebSocket.OPEN){const b=new ArrayBuffer(5),d=new DataView(b);d.setUint8(0,c);d.setUint32(1,v>>>0);ws.send(b)}};
-function hwFreq(){
-  if(fc>=24e3){cmd(9,0);inv=false;cmd(1,Math.round(fc*1000))}
-  else if(fc<=14.4e3){cmd(9,2);inv=false;cmd(1,Math.round(fc*1000))}
-  else{cmd(9,2);inv=true;cmd(1,Math.round((28.8e3-fc)*1000))}
-}
-function hwGain(){const g=$("rf").value;if(g==="auto"){cmd(3,0);cmd(8,1)}else{cmd(8,0);cmd(3,1);cmd(4,Math.round(g*10))}}
-
-function sendPresence(){
-  if(ws&&ws.readyState===WebSocket.OPEN){
-    ws.send(JSON.stringify({
-      type: "status",
-      name: $("name").value.trim()||"Anon",
-      freq: f,
-      mode: mode,
-      device: DEVICE_TYPE
-    }));
-  }
-}
-
-let reconnectTimer=null;
-function connect(){
-  if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
-  const url=target();gotH=false;head=new Uint8Array(0);carry=-1;
-  try{ws=new WebSocket(url)}catch(e){scheduleReconnect();return}
-  ws.binaryType="arraybuffer";
-  ws.onopen=()=>{
-    cmd(2,SR);cmd(5,C.ppm);hwFreq();hwGain();
-    sendPresence();
-    while(chatQueue.length>0&&ws.readyState===WebSocket.OPEN){
-      ws.send(chatQueue.shift());
-    }
-  };
-  ws.onmessage=ev=>{
-    if(typeof ev.data==="string"){
-      try{
-        const m=JSON.parse(ev.data);
-        if(m.type==="chat"||m.type==="sys"){chatIn(ev.data);return}
-        if(m.type==="usersList"){
-          activeUsers=m.users||[];
-          $("ucnt").textContent=m.count||1;
-          ov();
-          return;
-        }
-      }catch(e){}
-      return;
-    }
-    let u=new Uint8Array(ev.data);
-    if(!gotH){const m=new Uint8Array(head.length+u.length);m.set(head);m.set(u,head.length);if(m.length<12){head=m;return}
-      const ok=String.fromCharCode(...m.subarray(0,4))==="RTL0";gotH=true;u=m.subarray(ok?12:0)}
-    if(u.length)data(u)
-  };
-  ws.onerror=()=>{if(ws)ws.close();};
-  ws.onclose=()=>{ws=null;scheduleReconnect();};
-}
-function scheduleReconnect(){
-  if(!reconnectTimer){
-    reconnectTimer=setTimeout(()=>{connect();},1000);
-  }
-}
-$("rf").onchange=hwGain;
-
-// ---------- audio
-function initAudio(){if(actx){actx.resume();return}
-  actx=new(window.AudioContext||window.webkitAudioContext)();gn=actx.createGain();gn.connect(actx.destination);setVol()}
-const setVol=()=>{if(gn)gn.gain.value=$("mute").checked?0:+$("vol").value};
-function play(a,rate){if(!actx||!a.length)return;const t=actx.currentTime;if(nextT<t+.02)nextT=t+.08;if(nextT>t+.7)return;
-  const b=actx.createBuffer(1,a.length,rate);b.copyToChannel(a,0);const s=actx.createBufferSource();s.buffer=b;s.connect(gn);s.start(nextT);nextT+=b.duration}
-const startAudio=()=>{initAudio();$("ap").style.display="none"};
-$("ap").onclick=startAudio;
-$("vol").oninput=setVol;$("mute").onchange=setVol;
-
-// ---------- demodulator
-let pr=1,pi=0,a1r=0,a1i=0,c1=0,a2r=0,a2i=0,c2=0,a3=0,c3=0,ppr=0,ppi=0,deY=0,dc=0,cr=0,ci=0,ag=0;
-const p1=[1,0],p2=[1,0],lr=[0,0,0,0],li=[0,0,0,0],NT=32,DL=8,hh=new Float32Array(NT+DL+1),nw=new Float32Array(NT);
-const H3=[1,3,6,10,15,18,19,18,15,10,6,3,1];
-const mkDec=()=>({r:new Float64Array(13),i:new Float64Array(13),p:0,c:0,or:0,oi:0}),D1=mkDec(),D2=mkDec();
-function dec(D,xr,xi){D.r[D.p]=xr;D.i[D.p]=xi;if(++D.p===13)D.p=0;if(++D.c<5)return false;D.c=0;
-  let sr=0,si=0,k=D.p;for(let j=0;j<13;j++){if(--k<0)k=12;sr+=H3[j]*D.r[k];si+=H3[j]*D.i[k]}D.or=sr/125;D.oi=si/125;return true}
-const BQ=[.5098,.6013,.9,2.5629].map(q=>({q,b0:0,b1:0,b2:0,a1:0,a2:0,z1r:0,z2r:0,z1i:0,z2i:0}));let bqFc=0;
-function setBq(fc){fc=Math.max(20,Math.min(22000,fc));if(fc===bqFc)return;bqFc=fc;const w=2*PI*fc/48000,c=Math.cos(w);
-  for(const B of BQ){const a=Math.sin(w)/(2*B.q),a0=1+a;B.b0=(1-c)/2/a0;B.b1=(1-c)/a0;B.b2=B.b0;B.a1=-2*c/a0;B.a2=(1-a)/a0}}
-function notch(v){hh.copyWithin(1,0);hh[0]=v;let y=0,p=1e-6;for(let i=0;i<NT;i++){y+=nw[i]*hh[i+DL];p+=hh[i+DL]*hh[i+DL]}
-  const e=v-y,g=.01*e/p;for(let i=0;i<NT;i++)nw[i]+=g*hh[i+DL];return e}
-function demod(u8){
-  const n=u8.length>>1,w=-2*PI*(f-fc)*1000/SR,wr=Math.cos(w),wi=Math.sin(w),wide=mode==="fm"&&bw>=1e5;
-  const out=new Float32Array((n/25|0)+3),la=1-Math.exp(-PI*bw/48000),sh=PI*bw/48000,an=$("an").checked;
-  const s1=mode==="usb"?-sh:mode==="lsb"?sh:0,s2=mode==="usb"?sh:mode==="lsb"?-sh:2*PI*700/48000;
-  const q1r=Math.cos(s1),q1i=Math.sin(s1),q2r=Math.cos(s2),q2i=Math.sin(s2),al=1-Math.exp(-1/(SR/25*C.deemphasisUs*1e-6));
-  setBq(bw/2);let o=0,pw=0,pn=0,t;
-  for(let k=0;k<n;k++){
-    const x=(u8[2*k]-127.5)/127.5,y=(u8[2*k+1]-127.5)/127.5;
-    const mr=x*pr-y*pi,mi=x*pi+y*pr;t=pr*wr-pi*wi;pi=pr*wi+pi*wr;pr=t;
-    if(!dec(D1,mr,mi))continue;let sr=D1.or,si=D1.oi,v;
-    if(wide){
-      v=Math.atan2(si*ppr-sr*ppi,sr*ppr+si*ppi)/PI*1.6;ppr=sr;ppi=si;pw+=sr*sr+si*si;pn++;
-      a3+=v;if(++c3<5)continue;v=a3/5;a3=c3=0;deY+=al*(v-deY);out[o++]=Math.max(-1,Math.min(1,deY));continue}
-    if(!dec(D2,sr,si))continue;sr=D2.or;si=D2.oi;
-    if(s1){t=sr*p1[0]-si*p1[1];si=sr*p1[1]+si*p1[0];sr=t;t=p1[0]*q1r-p1[1]*q1i;p1[1]=p1[0]*q1i+p1[1]*q1r;p1[0]=t}
-    for(let j=0;j<4;j++){const B=BQ[j];let y0=B.b0*sr+B.z1r;B.z1r=B.b1*sr-B.a1*y0+B.z2r;B.z2r=B.b2*sr-B.a2*y0;sr=y0;
-      y0=B.b0*si+B.z1i;B.z1i=B.b1*si-B.a1*y0+B.z2i;B.z2i=B.b2*si-B.a2*y0;si=y0}
-    pw+=sr*sr+si*si;pn++;
-    if(mode==="am"){const m=Math.hypot(sr,si);dc+=.001*(m-dc);v=m-dc}
-    else if(mode==="amsync"){cr+=.0005*(sr-cr);ci+=.0005*(si-ci);v=(sr*cr+si*ci)/(Math.hypot(cr,ci)+1e-6);dc+=.001*(v-dc);v-=dc}
-    else if(mode==="fm"){v=Math.atan2(si*ppr-sr*ppi,sr*ppr+si*ppi)/PI*4;ppr=sr;ppi=si}
-    else{v=sr*p2[0]-si*p2[1];t=p2[0]*q2r-p2[1]*q2i;p2[1]=p2[0]*q2i+p2[1]*q2r;p2[0]=t}
-    if(mode!=="fm"){const e=Math.abs(v);ag+=(e>ag?.01:.0002)*(e-ag);v*=Math.min(40,.3/(ag+1e-3))}
-    if(an)v=notch(v);
-    out[o++]=Math.max(-1,Math.min(1,v));
-  }
-  for(const p of[p1,p2,[pr,pi]]){const m=Math.hypot(p[0],p[1])||1;p[0]/=m;p[1]/=m}
-  {const m=Math.hypot(pr,pi)||1;pr/=m;pi/=m}
-  db=10*Math.log10((pw/(pn||1))+1e-12);flo=Math.min(db,flo+.02);
-  if($("sq").checked&&db<flo+8)out.fill(0);
-  if(rec){const q=new Int16Array(o);for(let i=0;i<o;i++)q[i]=Math.max(-1,Math.min(1,out[i]))*32767;recC.push(q);recN+=o}
-  play(out.subarray(0,o),SR/25);
-}
-
-// ---------- FFT / waterfall
-const N=16384,re=new Float32Array(N),im=new Float32Array(N),win=new Float32Array(N),rev=new Uint16Array(N),ct=new Float32Array(N/2),sn=new Float32Array(N/2);
-for(let i=0;i<N;i++){win[i]=.5-.5*Math.cos(2*PI*i/(N-1));let r=0;for(let b=0;b<14;b++)if(i&(1<<b))r|=1<<(13-b);rev[i]=r}
-for(let i=0;i<N/2;i++){ct[i]=Math.cos(-2*PI*i/N);sn[i]=Math.sin(-2*PI*i/N)}
-function fft(){for(let i=0;i<N;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
-  for(let len=2;len<=N;len<<=1){const h=len>>1,step=N/len;for(let s=0;s<N;s+=len)for(let k=0;k<h;k++){const a=s+k,b=a+h,wr=ct[k*step],wi=sn[k*step],
-    tr=re[b]*wr-im[b]*wi,ti=re[b]*wi+im[b]*wr;re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti}}}
-const mc=$("main"),mx=mc.getContext("2d"),wc=document.createElement("canvas"),wx=wc.getContext("2d");wc.width=1024;wc.height=wfH;
-const row=wx.createImageData(1024,1),stops=[[0,0,0],[60,0,130],[150,0,220],[255,80,255],[255,255,255]];
-function col(t){t=Math.max(0,Math.min(.9999,t))*4;const i=t|0,u=t-i,a=stops[i],b=stops[i+1];return[a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,a[2]+(b[2]-a[2])*u]}
-const span=()=>SR/Math.pow(2,zoom);
-function viewC(){if(!zoom)return fc;const h=(SR-span())/2e3;return Math.max(fc-h,Math.min(fc+h,vcs))}
-const sb=new Uint8Array(2*N);let sbn=0;
-function spectrum(u8){if(sbn<2*N){const c=Math.min(u8.length,2*N-sbn);sb.set(u8.subarray(0,c),sbn);sbn+=c}
-  if(sbn<2*N)return;sbn=0;const now=performance.now();if(now-lastT<+$("spd").value)return;lastT=now;
-  for(let i=0;i<N;i++){re[i]=(sb[2*i]-127.5)/127.5*win[i];im[i]=(sb[2*i+1]-127.5)/127.5*win[i]}
-  fft();const d=new Float32Array(N);let m=0;
-  for(let k=0;k<N;k++){const s=(k+N/2)%N;d[k]=10*Math.log10((re[s]*re[s]+im[s]*im[s])/N+1e-12);m+=d[k]}
-  mm+=.1*(m/N-mm);
-  {const t=[];for(let k=0;k<N;k+=8)t.push(d[k]);t.sort((a,b)=>a-b);const md=t[t.length>>1];medS=medOK?medS+.1*(md-medS):md;medOK=true}
-  const vc=viewC(),sp=span(),bpp=sp/1024/SR*N;lastRow=new Float32Array(1024);
-  for(let x=0;x<1024;x++){const c=((vc-fc)*1000+(x/1024-.5)*sp)/SR*N+N/2,a=Math.max(0,Math.floor(c-bpp/2)),b=Math.min(N-1,Math.max(a,Math.ceil(c+bpp/2)));
-    let v=-200;if(c>=0&&c<N)for(let k=a;k<=b;k++)if(d[k]>v)v=d[k];lastRow[x]=v;
-    const q=col((v-mm+12)/55);row.data[4*x]=q[0];row.data[4*x+1]=q[1];row.data[4*x+2]=q[2];row.data[4*x+3]=255}
-  wx.drawImage(wc,0,-1);wx.putImageData(row,0,wfH-1);render()}
-function data(u){if(inv)for(let i=1;i<u.length;i+=2)u[i]=255-u[i];
-  if(carry>=0){const m=new Uint8Array(u.length+1);m[0]=carry;m.set(u,1);u=m;carry=-1}
-  if(u.length&1){carry=u[u.length-1];u=u.subarray(0,u.length-1)}spectrum(u);demod(u);meter()}
-
-// ---------- drawing
-const BANDS=[[531,1602,"MW broadcast",1],[1810,2000,"160m amateurs",0],[2300,2495,"120m broadcast",1],[3200,3400,"90m broadcast",1],[3500,3800,"80m amateurs",0],
-[3900,4000,"75m broadcast",1],[4750,5060,"60m broadcast",1],[5900,6200,"49m broadcast",1],[7000,7200,"40m amateurs",0],[7200,7450,"41m broadcast",1],[9400,9900,"31m broadcast",1],
-[10100,10150,"30m licensed amateurs",0],[11600,12100,"25m broadcast",1],[13570,13870,"22m broadcast",1],[14000,14350,"20m amateurs",0],[15100,15800,"19m broadcast",1],
-[17480,17900,"16m broadcast",1],[18068,18168,"17m amateurs",0],[21000,21450,"15m amateurs",0],[21450,21850,"13m broadcast",1],[24890,24990,"12m amateurs",0],[26965,27405,"CB 11m",2],[28000,29700,"10m amateurs",0]];
-const BC=["#2c2","#c3c","#39f"];
-function axis(c,y,vc,sp,h){c.font="10px 'Courier New',monospace";c.textBaseline="alphabetic";const k=sp/1e3,st=[.1,.2,.5,1,2,5,10,20,50,100,200,500,1000,2000].find(s=>s/k*1024>=64)||2000;
-  c.fillStyle=c.strokeStyle="#fff";c.textAlign="center";c.lineWidth=1;const lo=vc-k/2;
-  for(let v=Math.ceil(lo/st)*st;v<vc+k/2;v+=st){const x=Math.round((v-vc)/k*1024+512)+.5;c.beginPath();c.moveTo(x,y);c.lineTo(x,y+4);c.stroke();c.fillText(st<1?v.toFixed(1):Math.round(v),x,y+14)}
-  c.textAlign="center";for(const[a,b,l,t]of BANDS){if(b<lo||a>vc+k/2)continue;const x0=Math.max(0,(a-vc)/k*1024+512),x1=Math.min(1024,(b-vc)/k*1024+512);
-    c.strokeStyle=c.fillStyle=BC[t];c.beginPath();c.moveTo(x0,y+h);c.lineTo(x1,y+h);c.stroke();c.font="9px 'Courier New',monospace";c.fillText(l,(x0+x1)/2,y+h+10)}}
-const DXC=["#a6753c","#2f78b4","#3a8f4a","#8a4aa0","#6a7480","#b03a3a","#707070"];
-const DX=[
-[4625,"RUS MIL Buzzer (UVB-76)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[5292,"RUS MIL D Marker","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4325,"RUS MIL T Marker","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4930,"RUS MIL Air Horn","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4770,"RUS MIL Alarm","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4310,"RUS MIL Goose","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[3243,"RUS MIL Goose (night)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4224,"RUS MIL Katok65","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[3218.5,"RUS MIL Katok65 (night)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4110,"RUS MIL Zaliv52","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[5448,"RUS MIL Pip (day)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[3756,"RUS MIL Pip (night)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[5367,"RUS MIL Squeaky Wheel (day)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[3363.5,"RUS MIL Squeaky Wheel (night)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[5372,"RUS MIL Vega","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[4940,"RUS MIL Baron78 (day)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[3850,"RUS MIL Baron78 (night)","usb",2700,0,"Russian military (Priyom)","Activity varies - see priyom.org"],
-[2500,"WWV / WWVH / BPM time","am",6000,1,"Time signals","USA (Fort Collins, Kekaha) and China"],
-[5000,"WWV / WWVH / BPM time","am",6000,1,"Time signals","USA and China"],
-[10000,"WWV / WWVH / BPM time","am",6000,1,"Time signals","USA and China"],
-[15000,"WWV / WWVH / BPM time","am",6000,1,"Time signals","USA and China"],
-[20000,"WWV time","am",6000,1,"Time signals","Fort Collins, USA"],
-[25000,"WWV time (experimental)","am",6000,1,"Time signals","May be off without notice"],
-[3330,"CHU time","usb",2700,1,"Time signals","Ottawa, Canada"],
-[7850,"CHU time","usb",2700,1,"Time signals","Ottawa, Canada"],
-[14670,"CHU time","usb",2700,1,"Time signals","Ottawa, Canada"],
-[4996,"RWM time","cw",800,1,"Time signals","Moscow, Russia"],
-[9996,"RWM time","cw",800,1,"Time signals","Moscow, Russia"],
-[14996,"RWM time","cw",800,1,"Time signals","Moscow, Russia"],
-[4724,"USAF HFGCS","usb",2700,3,"Aviation (HFGCS & Volmet)","US Air Force"],
-[6739,"USAF HFGCS","usb",2700,3,"Aviation (HFGCS & Volmet)","US Air Force"],
-[8992,"USAF HFGCS","usb",2700,3,"Aviation (HFGCS & Volmet)","24 hours"],
-[11175,"USAF HFGCS","usb",2700,3,"Aviation (HFGCS & Volmet)","24 hours"],
-[13200,"USAF HFGCS","usb",2700,3,"Aviation (HFGCS & Volmet)","US Air Force"],
-[15016,"USAF HFGCS","usb",2700,3,"Aviation (HFGCS & Volmet)","US Air Force"],
-[3413,"Shannon Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Ireland"],
-[5505,"Shannon Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Ireland"],
-[8957,"Shannon Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Ireland"],
-[13264,"Shannon Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Ireland"],
-[3485,"Gander Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Canada - 20 and 50 min past the hour"],
-[6604,"Gander Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Canada"],
-[10051,"Gander Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Canada"],
-[13270,"Gander Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","Canada"],
-[5450,"RAF Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","UK"],
-[11253,"RAF Volmet","usb",2700,3,"Aviation (HFGCS & Volmet)","UK"],
-[6754,"Canada Volmet (Quinte West)","usb",2700,3,"Aviation (HFGCS & Volmet)","Canada"],
-[15034,"Canada Volmet (Quinte West)","usb",2700,3,"Aviation (HFGCS & Volmet)","Canada"],
-[5130,"WBCQ (Maine, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[7490,"WBCQ (Maine, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[5850,"WRMI (Florida, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[5950,"WRMI (Florida, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[9395,"WRMI (Florida, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[9455,"WRMI (Florida, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[15770,"WRMI (Florida, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[4840,"WWCR (Nashville, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[12160,"WWCR (Nashville, USA)","am",6000,5,"Shortwave broadcasters","Broadcast schedule varies - check the station"],
-[1840,"FT8 160m","usb",2700,2,"Ham & marine channels",""],
-[3573,"FT8 80m","usb",2700,2,"Ham & marine channels",""],
-[7074,"FT8 40m","usb",2700,2,"Ham & marine channels",""],
-[10136,"FT8 30m","usb",2700,2,"Ham & marine channels",""],
-[14074,"FT8 20m","usb",2700,2,"Ham & marine channels",""],
-[18100,"FT8 17m","usb",2700,2,"Ham & marine channels",""],
-[21074,"FT8 15m","usb",2700,2,"Ham & marine channels",""],
-[24915,"FT8 12m","usb",2700,2,"Ham & marine channels",""],
-[28074,"FT8 10m","usb",2700,2,"Ham & marine channels",""],
-[7038.6,"WSPR 40m","usb",2700,2,"Ham & marine channels",""],
-[10138.7,"WSPR 30m","usb",2700,2,"Ham & marine channels",""],
-[14095.6,"WSPR 20m","usb",2700,2,"Ham & marine channels",""],
-[2182,"Marine distress","usb",2700,3,"Ham & marine channels",""],
-[4125,"Marine distress","usb",2700,3,"Ham & marine channels",""],
-[6215,"Marine distress","usb",2700,3,"Ham & marine channels",""],
-[8291,"Marine distress","usb",2700,3,"Ham & marine channels",""],
-[12290,"Marine distress","usb",2700,3,"Ham & marine channels",""],
-[16420,"Marine distress","usb",2700,3,"Ham & marine channels",""],
-[2187.5,"DSC distress","usb",2700,3,"Ham & marine channels",""],
-[4207.5,"DSC distress","usb",2700,3,"Ham & marine channels",""],
-[6312,"DSC distress","usb",2700,3,"Ham & marine channels",""],
-[8414.5,"DSC distress","usb",2700,3,"Ham & marine channels",""],
-[12577,"DSC distress","usb",2700,3,"Ham & marine channels",""],
-[16804.5,"DSC distress","usb",2700,3,"Ham & marine channels",""],
-[490,"NAVTEX","usb",500,3,"Ham & marine channels",""],
-[518,"NAVTEX","usb",500,3,"Ham & marine channels",""],
-[27065,"CB ch.9","am",6000,4,"Ham & marine channels",""],
-[27185,"CB ch.19","am",6000,4,"Ham & marine channels",""],
-[153,"Radio Antena Satelor (RO)","am",4500,5,"Longwave broadcasters","Romania - Brasov"],
-[164,"MNB Radio 1 (MN)","am",4500,5,"Longwave broadcasters","Mongolia - Ulaanbaatar, on air about 22:00-15:00 UTC"],
-[171,"Médi 1 (MA)","am",4500,5,"Longwave broadcasters","Morocco - Nador"],
-[209,"MNB Radio 1 (MN)","am",4500,5,"Longwave broadcasters","Mongolia - Choibalsan, Dalanzadgad, Ölgii; about 22:00-15:00 UTC"],
-[225,"Polskie Radio Program 1 (PL)","am",4500,5,"Longwave broadcasters","Poland - Solec Kujawski"],
-[227,"MNB Radio 1 (MN)","am",4500,5,"Longwave broadcasters","Mongolia - Altai; about 22:00-15:00 UTC"],
-[252,"Alger Chaîne 3 (DZ)","am",4500,5,"Longwave broadcasters","Algeria - Tipaza, intermittent"],
-[252,"Arctic 252 (FI)","am",4500,5,"Longwave broadcasters","Finland - Inari, enthusiast station on air again since Aug 2025"],
-[153,"Deutschlandfunk (DE)","am",4500,5,"Longwave - closed stations","Germany - Donebach, closed",0],
-[153,"Alger Chaîne 1 (DZ)","am",4500,5,"Longwave - closed stations","Algeria - Kenadsa, closed",0],
-[153,"NRK P1/P2 (NO)","am",4500,5,"Longwave - closed stations","Norway - Ingøy, closed",0],
-[153,"Radio Rossii / YuFM (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[162,"France Inter (FR)","am",4500,5,"Longwave - closed stations","France - Allouis, closed; the carrier now carries the ALS162 time signal",0],
-[162,"TRT Radyo 4 (TR)","am",4500,5,"Longwave - closed stations","Turkey - Ağrı, closed",0],
-[162,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[171,"Radio Ukraine 1 (UA)","am",4500,5,"Longwave - closed stations","Ukraine - Krasne, closed",0],
-[171,"Radio Rossii / Radio 1 (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[177,"Deutschlandradio Kultur (DE)","am",4500,5,"Longwave - closed stations","Germany - Zehlendorf, closed",0],
-[180,"TRT Radyo 1 (TR)","am",4500,5,"Longwave - closed stations","Turkey - Polatli, closed",0],
-[180,"Radio Rossii / Mayak (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[183,"Europe 1 (FR)","am",4500,5,"Longwave - closed stations","France/Germany - Felsberg, closed",0],
-[189,"Rai Radio 1 (IT)","am",4500,5,"Longwave - closed stations","Italy - Caltanissetta, closed",0],
-[189,"Sveriges Radio P1 (SE)","am",4500,5,"Longwave - closed stations","Sweden - Orlunda, closed",0],
-[189,"RÚV Rás 1/2 (IS)","am",4500,5,"Longwave - closed stations","Iceland - Gufuskálar, closed",0],
-[189,"Sakartvelos Radio (GE)","am",4500,5,"Longwave - closed stations","Georgia - Dusheti, closed",0],
-[189,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[198,"BBC Radio 4 (UK)","am",4500,5,"Longwave - closed stations","Droitwich, Burghead, Westerglen - closed 27 June 2026 after almost 100 years",0],
-[198,"Alger Chaîne 1 (DZ)","am",4500,5,"Longwave - closed stations","Algeria - Berkaoui, closed",0],
-[198,"Polskie Radio Parlament (PL)","am",4500,5,"Longwave - closed stations","Poland - Raszyn, closed",0],
-[198,"Radio 1 (KG)","am",4500,5,"Longwave - closed stations","Kyrgyzstan - Bishkek, closed",0],
-[198,"Radio Mayak (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[207,"Deutschlandfunk (DE)","am",4500,5,"Longwave - closed stations","Germany - Aholming, closed",0],
-[207,"RÚV Rás 1/2 (IS)","am",4500,5,"Longwave - closed stations","Iceland - Eiðar, closed",0],
-[207,"RNE Radio 5 (ES)","am",4500,5,"Longwave - closed stations","Spain - Logroño, closed",0],
-[207,"Radio Ukraine 1 (UA)","am",4500,5,"Longwave - closed stations","Ukraine - Brovary, closed",0],
-[207,"Radio al-Urdunniya (JO)","am",4500,5,"Longwave - closed stations","Jordan - Al Karanah, closed",0],
-[207,"SNRT Al-Idaa Al-Watania (MA)","am",4500,5,"Longwave - closed stations","Morocco - Azilal Demnate, closed",0],
-[207,"Radio Mayak (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[216,"Radio Monte Carlo Info (MC)","am",4500,5,"Longwave - closed stations","Monaco/France - Roumoules, closed",0],
-[216,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[225,"TRT GAP (TR)","am",4500,5,"Longwave - closed stations","Turkey - Van, closed",0],
-[225,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[234,"RTL (LU)","am",4500,5,"Longwave - closed stations","Luxembourg - Beidweiler, closed",0],
-[234,"Radio 1 / Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[243,"DR Langbølge (DK)","am",4500,5,"Longwave - closed stations","Denmark - Kalundborg, closed",0],
-[243,"TRT Radyo 4 (TR)","am",4500,5,"Longwave - closed stations","Turkey - Erzurum, closed",0],
-[243,"Kazakh Radio 2 Shalkar (KZ)","am",4500,5,"Longwave - closed stations","Kazakhstan - Karaganda, closed",0],
-[243,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[252,"RTÉ Radio 1 (IE)","am",4500,5,"Longwave - closed stations","Ireland - Clarkstown, closed",0],
-[252,"Yle Radio 1 (FI)","am",4500,5,"Longwave - closed stations","Finland - Lahti, closed 1993",0],
-[252,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[261,"Radioropa Info (DE)","am",4500,5,"Longwave - closed stations","Germany - Burg, closed",0],
-[261,"Radio Horizont (BG)","am",4500,5,"Longwave - closed stations","Bulgaria - Vakarel, closed",0],
-[261,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[270,"ČRo Radiožurnál (CZ)","am",4500,5,"Longwave - closed stations","Czech Republic - Topolná, masts demolished 28 July 2022",0],
-[270,"Radio Rossii / Radio 1 (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[279,"BR Pershy Kanal (BY)","am",4500,5,"Longwave - closed stations","Belarus - Sasnovy, closed",0],
-[279,"TR1 Watan Radio (TM)","am",4500,5,"Longwave - closed stations","Turkmenistan - Ashgabat, closed",0],
-[279,"Radio Rossii (RU)","am",4500,5,"Longwave - closed stations","Russian longwave stations were all closed in 2014-2015",0],
-[40,"JJY 40 (JP)","cw",250,1,"LF time signals","Japan - Fukushima"],
-[60,"MSF (UK)","cw",250,1,"LF time signals","United Kingdom - Anthorn"],
-[60,"WWVB (US)","cw",250,1,"LF time signals","United States - Fort Collins"],
-[60,"JJY 60 (JP)","cw",250,1,"LF time signals","Japan - Mt. Hagane, Kyushu"],
-[66.66,"RBU (RU)","cw",250,1,"LF time signals","Russia - Taldom"],
-[68.5,"BPC (CN)","cw",250,1,"LF time signals","China - Shangqiu"],
-[77.5,"DCF77 (DE)","cw",250,1,"LF time signals","Germany - Mainflingen"],
-[162,"ALS162 (FR)","cw",250,1,"LF time signals","France - Allouis, time signal on the old France Inter carrier"],
-[75,"HBG (CH)","cw",250,1,"LF time signals","Switzerland - Prangins, discontinued 1 January 2012",0]
-].concat(C.dx||[]);
-const isOff=d=>d[7]===0;
-function drawDX(c,vc,k,y0){tags=[];c.font="11px Arial,sans-serif";c.textAlign="left";c.textBaseline="alphabetic";
-  const items=[];
-  for(const d of DX.filter(d=>d[0]>=vc-k/2&&d[0]<=vc+k/2).sort((a,b)=>a[0]-b[0])){
-    const L=items[items.length-1];if(L&&Math.abs(L.d[0]-d[0])<.5){L.n++;if(isOff(L.d)&&!isOff(d))L.d=d}else items.push({d,n:1})}
-  const last=[null,null,null],placed=[];
-  for(const it of items){const d=it.d,label=d[1]+(it.n>1?" +"+(it.n-1):""),x=Math.round((d[0]-vc)/k*1024+512),fw=Math.ceil(c.measureText(label).width)+8;let r=0;
-    for(;r<3;r++){const L=last[r];if(!L||L.x+L.w<=x)break;if(x-L.x>=22){L.w=x-L.x-1;break}}
-    if(r===3)continue;const t={x,y:y0+r*16,w:fw,d,label};last[r]=t;placed.push(t)}
-  const col=t=>DXC[isOff(t.d)?6:(t.d[4]||0)];
-  c.save();c.globalAlpha=.55;
-  for(const t of placed){c.fillStyle=col(t);c.fillRect(t.x,0,1,t.y)}
-  c.globalAlpha=1;
-  for(const t of placed){const on=Math.abs(t.d[0]-f)<.5;c.fillStyle=col(t);c.fillRect(t.x,t.y,t.w,16);
-    c.strokeStyle=on?"#ff0":"rgba(255,255,255,.35)";c.lineWidth=1;c.setLineDash(isOff(t.d)&&!on?[3,2]:[]);c.strokeRect(t.x+.5,t.y+.5,t.w-1,15);c.setLineDash([]);
-    c.save();c.beginPath();c.rect(t.x,t.y,t.w,16);c.clip();c.fillStyle=isOff(t.d)?"#d8d8d8":"#fff";c.fillText(t.label,t.x+3,t.y+12);c.restore();
-    tags.push({x:t.x,y:t.y,w:t.w,d:t.d})}
-  c.restore()}
-function pb(){const hz=span()/1024,cx=(f-viewC())*1000/hz+512,w=bw/hz;
-  return mode==="usb"?[cx,cx+w]:mode==="lsb"?[cx-w,cx]:[cx-w/2,cx+w/2]}
-function render(){mc.style.display=$("vb").checked?"none":"block";if($("vb").checked)return;
-  mx.fillStyle="#000";mx.fillRect(0,0,1024,mc.height);
-  if($("vws").value==="waterfall")mx.drawImage(wc,0,0);
-  else if(lastRow){mx.strokeStyle="#c6f";mx.beginPath();for(let x=0;x<1024;x++){const y=wfH-4-(lastRow[x]-mm+12)/55*(wfH-8);x?mx.lineTo(x,y):mx.moveTo(x,y)}mx.stroke()}
-  {const hz=span()/1024,[q0,q1]=pb(),cx=(f-viewC())*1000/hz+512;
-    mx.fillStyle="rgba(255,255,0,.14)";mx.fillRect(q0,0,Math.max(2,q1-q0),wfH);
-    mx.fillStyle="rgba(255,255,0,.9)";mx.fillRect(Math.round(cx),0,1,wfH+16);
-    if(hx!==null){mx.fillStyle="rgba(255,255,255,.55)";mx.fillRect(Math.round(hx),0,1,wfH);
-      const t=fAt(hx).toFixed(2)+" kHz";mx.font="11px Arial,sans-serif";mx.textAlign="left";const w=mx.measureText(t).width+8,lx=Math.max(0,Math.min(1024-w,hx+8));
-      mx.fillStyle="rgba(0,0,0,.75)";mx.fillRect(lx,2,w,16);mx.fillStyle="#fff";mx.fillText(t,lx+4,14)}}
-  const sp=span();axis(mx,wfH,viewC(),sp,32);drawDX(mx,viewC(),sp/1e3,wfH+48);
-  const[x0,x1]=pb(),T=wfH+16,B=wfH+32;mx.strokeStyle="#ff0";mx.lineWidth=1;mx.beginPath();
-  mx.moveTo(x0-(mode==="usb"?0:8),B);mx.lineTo(x0,T);mx.lineTo(x1,T);mx.lineTo(x1+(mode==="lsb"?0:8),B);mx.stroke();
-  $("bwtxt").innerHTML=`<b style="font-weight:normal">${(bw/1e3).toFixed(2)}</b> kHz @ -6dB; <b style="font-weight:normal">${(bw*1.185/1e3).toFixed(2)}</b> kHz @ -60dB.`;
-  ov()}
-
-const oc=$("ovw"),ox=oc.getContext("2d");
-function ov(){
-  const c=3e4, sp=c*1e3;
-  ox.fillStyle="#000";
-  ox.fillRect(0,0,1024,57);
-  axis(ox,12,15e3,sp,32);
-  
-  const list = activeUsers.length ? activeUsers : [{name: $("name").value, freq: f, device: DEVICE_TYPE}];
-  for(const u of list){
-    const x=(u.freq-15e3)/c*1024+512;
-    ox.fillStyle="#f90";
-    ox.textAlign="center";
-    ox.font="10px Arial";
-    const label = u.device ? `${u.name||"Anon"} [${u.device}]` : (u.name||"Anon");
-    ox.fillText(label, Math.max(45, Math.min(979, x)), 9);
-    ox.strokeStyle="#f90";
-    ox.beginPath();
-    ox.moveTo(x+.5, 10);
-    ox.lineTo(x+.5, 18);
-    ox.stroke();
-  }
-}
-
-const sm=$("sm").getContext("2d"),pl=$("pl").getContext("2d"),hist=[];
-const K=[[-108,.04],[-60,.4],[-40,.54],[-20,.72],[0,.87]];
-function frac(d){if(d<=K[0][0])return Math.max(0,.04+(d-K[0][0])*.005);for(let i=1;i<K.length;i++)if(d<=K[i][0])return K[i-1][1]+(K[i][1]-K[i-1][1])*(d-K[i-1][0])/(K[i][0]-K[i-1][0]);return Math.min(1,.87+(d/100)*.1)}
-function meter(){const now=performance.now();if(now-(meter.t||0)<60)return;meter.t=now;
-  const wide=mode==="fm"&&bw>=1e5,fl=medS+5.86+10*Math.log10(wide?.112:Math.min(1,bw/SR)),lv=db-fl-104;peak=Math.max(lv,peak-.4);
-  sm.fillStyle="#000";sm.fillRect(0,0,250,72);sm.fillStyle="#0f0";sm.fillRect(0,36,frac(lv)*250,5);
-  sm.font="7px Arial";sm.textAlign="left";[["S1",-108],["S3",-96],["S5",-84],["S7",-72],["S9",-60],["+20dB",-40],["+40dB",-20],["+60dB",0]].forEach(([t,d])=>sm.fillText(t,frac(d)*250-4,66));
-  $("smt").textContent=`${lv.toFixed(1)} dB; peak ${peak.toFixed(1)} dB;`;
-  const m=$("plot").value;if(m!=="none"){if(now-(meter.p||0)>(m==="fast"?100:500)){meter.p=now;hist.push(lv);if(hist.length>250)hist.shift()}
-    pl.fillStyle="#000";pl.fillRect(0,0,250,40);pl.strokeStyle="#0f0";pl.beginPath();hist.forEach((d,i)=>{const y=40-frac(d)*40;i?pl.lineTo(i,y):pl.moveTo(i,y)});pl.stroke()}}
-$("plot").onchange=()=>{$("pl").style.display=$("plot").value==="none"?"none":"block"};
-
-// ---------- tuning / UI
-function setF(v){f=Math.max(0,Math.min(3e4,v));if(Math.abs(f-fc)>SR*.4/1e3){fc=f;vcs=f;hwFreq()}
-  if(zoom){const h=span()/2e3,m=h*.1,c=viewC();if(f<c-h+m)vcs=f-h+m;else if(f>c+h-m)vcs=f+h-m}
-  $("freq").value=f.toFixed(2);render();sendPresence()}
-function setMode(m,b){mode=m;bw=b;active();setF(f)}
-function active(){document.querySelectorAll("#bwg button[data-m]").forEach(x=>x.classList.toggle("on",x.dataset.m===mode&&+x.dataset.b===bw))}
-$("freq").onchange=()=>setF(parseFloat($("freq").value)||f);
-document.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{const d=+b.dataset.d;setF(f+Math.sign(d)*st()[Math.abs(d)-1])});
-document.querySelectorAll("#bwg button").forEach(b=>b.onclick=()=>{
-  if(b.dataset.m)return setMode(b.dataset.m,+b.dataset.b);
-  const dir=+b.dataset.w;if(mode==="fm"){const L=[7500,15000,30000,2e5];let i=L.findIndex(v=>v>=bw*.99);i=Math.max(0,Math.min(3,(i<0?3:i)+dir));bw=L[i]}
-  else bw=Math.max(100,Math.min(24000,bw*(dir>0?1.2:1/1.2)));active();setF(f)});
-const zs=(z,x)=>{const u=x===undefined?.5:x/1024,fx=viewC()+(u-.5)*span()/1e3;zoom=Math.max(0,Math.min(4,z));vcs=fx-(u-.5)*span()/1e3;render()};
-$("zi").onclick=()=>zs(zoom+1);$("zo").onclick=()=>zs(zoom-1);$("mi").onclick=()=>zs(4);$("mo").onclick=()=>zs(0);
-$("siz").onchange=()=>{wfH=+$("siz").value;wc.height=wfH;mc.height=wfH+100;render()};
-$("vb").onchange=$("vw").onchange=render;$("vws").onchange=render;
-const fAt=x=>viewC()+(x/1024-.5)*span()/1e3,snap=v=>{const s=st()[0];return Math.round(v/s)*s};
-let drag=null,sx=0,sv=0,moved=false;const px=e=>{const r=mc.getBoundingClientRect();return[(e.clientX-r.left)*1024/r.width,(e.clientY-r.top)*mc.height/r.height]};
-function tuneStn(d){if(d[2]){mode=d[2];bw=d[3]||bw;active()}if(zoom)vcs=d[0];setF(d[0])}
-mc.onmousedown=e=>{const[x,y]=px(e),[a,b]=pb();
-  const hit=tags.find(t=>x>=t.x&&x<=t.x+t.w&&y>=t.y&&y<=t.y+16);
-  if(hit){tuneStn(hit.d);drag=null;return}
-  moved=false;sx=x;sv=viewC();
-  drag=y>wfH+8&&Math.abs(x-a)<7?"l":y>wfH+8&&Math.abs(x-b)<7?"r":y>wfH?"t":"p";
-  if(drag==="t")setF(snap(fAt(x)))};
-addEventListener("mouseup",()=>{if(drag==="p"&&!moved)setF(snap(fAt(sx)));drag=null});
-addEventListener("mousemove",e=>{if(!drag)return;const[x]=px(e),hz=span()/1024,cx=(f-viewC())*1000/hz+512;
-  if(drag==="p"){const dx=x-sx;if(Math.abs(dx)>3)moved=true;if(moved&&zoom){vcs=sv-dx*span()/1024/1e3;render()}return}
-  if(drag==="t")return setF(snap(fAt(x)));
-  const w=mode==="usb"?(drag==="r"?x-cx:0):mode==="lsb"?(drag==="l"?cx-x:0):2*Math.abs(x-cx);if(w>0){bw=Math.max(100,Math.min(mode==="fm"?25e4:24000,w*hz));active();render()}});
-mc.addEventListener("mousemove",e=>{const[x,y]=px(e);hx=x;mc.style.cursor=tags.some(t=>x>=t.x&&x<=t.x+t.w&&y>=t.y&&y<=t.y+16)?"pointer":"crosshair";render()});mc.addEventListener("mouseleave",()=>{hx=null;render()});
-mc.addEventListener("wheel",e=>{e.preventDefault();const d=e.deltaY||e.deltaX;if(e.shiftKey){if(zoom){vcs=viewC()+(d>0?1:-1)*span()/8e3;render()}return}zs(zoom+(d<0?1:-1),px(e)[0])},{passive:false});
-oc.onclick=e=>{const r=oc.getBoundingClientRect();setF(snap(15e3+((e.clientX-r.left)/r.width-.5)*3e4))};
-addEventListener("keydown",e=>{if(!$("kb").checked||/INPUT|SELECT/.test(e.target.tagName))return;const s=st(),k=e.key;
-  if(k==="ArrowRight")setF(f+s[0]);else if(k==="ArrowLeft")setF(f-s[0]);else if(k==="ArrowUp")setF(f+s[1]);else if(k==="ArrowDown")setF(f-s[1]);
-  else if(k==="+")zs(zoom+1);else if(k==="-")zs(zoom-1);else if(k==="m"){$("mute").click()}else return;e.preventDefault()});
-
-// memories
-let mems=store("rtlmem")||[];
-function memUI(){const s=$("mem"),v=s.value;s.innerHTML='<option value="-1">(new)</option>'+mems.map((m,i)=>`<option value="${i}">${m.f.toFixed(2)} ${m.m}</option>`).join("");s.value=v<mems.length?v:-1;
-  $("recall").disabled=$("erase").disabled=s.value==="-1"}
-$("mem").onchange=memUI;
-$("store").onclick=()=>{const m={f,m:mode,b:bw},i=+$("mem").value;if(i<0){mems.push(m);store("rtlmem",mems);memUI();$("mem").value=mems.length-1}else{mems[i]=m;store("rtlmem",mems)}memUI()};
-$("recall").onclick=()=>{const m=mems[+$("mem").value];if(m){mode=m.m;bw=m.b;active();setF(m.f)}};
-$("erase").onclick=()=>{mems.splice(+$("mem").value,1);store("rtlmem",mems);$("mem").value=-1;memUI()};
-
-// logbook / chat / recording
-let lg=store("rtllog")||[];
-$("ls").onclick=()=>{if(!$("lc").value&&!$("lm").value)return;lg.push(`${new Date().toISOString().slice(0,19)} ${f.toFixed(2)} kHz ${mode} ${$("name").value}: ${$("lc").value} ${$("lm").value}`);store("rtllog",lg);$("lc").value=$("lm").value=""};
-$("l20").onclick=e=>{e.preventDefault();alert(lg.slice(-20).join("\n")||"(logbook is empty)")};
-$("lall").onclick=e=>{e.preventDefault();alert(lg.join("\n")||"(logbook is empty)")};
-const hh2=n=>String(n).padStart(2,"0");
-function chatLine(txt,sys){const l=$("chatlog"),d=document.createElement("div");d.textContent=txt;if(sys)d.style.color="#555";
-  const bottom=l.scrollTop+l.clientHeight>=l.scrollHeight-8;l.appendChild(d);while(l.children.length>200)l.removeChild(l.firstChild);if(bottom)l.scrollTop=l.scrollHeight}
-function chatIn(raw){let m;try{m=JSON.parse(raw)}catch(e){return}
-  if(!m)return;
-  const t=new Date(m.t||Date.now());
-  if(m.type==="chat"&&typeof m.name==="string"&&typeof m.text==="string"){
-    chatLine(`[${hh2(t.getHours())}:${hh2(t.getMinutes())}] ${m.name}: ${m.text}`);
-  }else if(m.type==="sys"&&typeof m.text==="string"){
-    chatLine(`[${hh2(t.getHours())}:${hh2(t.getMinutes())}] ${m.text}`,true);
-  }
-}
-
-$("ci").onkeydown=e=>{
-  if(e.key!=="Enter")return;
-  const text=$("ci").value.trim();if(!text)return;
-  const name=$("name").value.trim()||"Anon";
-  const msg=JSON.stringify({type:"chat",name,text});
-  if(ws&&ws.readyState===WebSocket.OPEN){
-    ws.send(msg);
-  }else{
-    chatQueue.push(msg);
-    chatLine("(reconnecting - message queued)",1);
-  }
-  $("ci").value="";
-};
-$("cmp").onchange=()=>{const h=$("cmp").checked;for(const i of["log","ovw","hr2","chat"])$(i).style.display=h?"none":""};
-
-// ---------- WAV recording
-let rec=false,recC=[],recN=0,recName="",recTimer=0;
-const RATE=SR/25,pad=n=>String(n).padStart(2,"0");
-const fmtSize=b=>b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(2)+" MB";
-function recUI(){const t=Math.floor(recN/RATE);$("recinfo").textContent=rec?`● ${pad(Math.floor(t/60))}:${pad(t%60)} - ${fmtSize(44+recN*2)}`:""}
-function wavBlob(){const b=new ArrayBuffer(44+recN*2),v=new DataView(b),w=(o,t)=>{for(let i=0;i<t.length;i++)v.setUint8(o+i,t.charCodeAt(i))};
-  w(0,"RIFF");v.setUint32(4,36+recN*2,true);w(8,"WAVEfmt ");v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);
-  v.setUint32(24,RATE,true);v.setUint32(28,RATE*2,true);v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,"data");v.setUint32(40,recN*2,true);
-  const a=new Int16Array(b,44,recN);let o=0;for(const c of recC){a.set(c,o);o+=c.length}return new Blob([b],{type:"audio/wav"})}
-$("rec").onclick=()=>{
-  if(!rec){const d=new Date();recName=`websdr_recording_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}_${f.toFixed(2)}kHz_${mode}.wav`;
-    recC=[];recN=0;rec=true;$("rec").textContent="stop";recUI();recTimer=setInterval(recUI,250);return}
-  rec=false;clearInterval(recTimer);$("rec").textContent="start";
-  if(!recN){$("recinfo").textContent="nothing recorded (no audio received)";return}
-  const a=document.createElement("a");a.href=URL.createObjectURL(wavBlob());a.download=recName;a.click();
-  $("recinfo").textContent="saved "+recName+" ("+fmtSize(44+recN*2)+")";recC=[];recN=0};
-
-active();memUI();setF(f);
-connect();
-})();
+(async()=>{let j={};
+ try{const r=await fetch('config.json?_='+Date.now(),{cache:'no-store'});if(r.ok)j=await r.json()}catch(e){}
+ window.RX_CONFIG=merge(DEFAULTS,j);boot()})();
 </script>
 </body>
 </html>
