@@ -20,6 +20,7 @@ const cfg = (() => {
   try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')).source || {}; } catch {}
   return {};
 })();
+const PAGE_URL = (() => { try { return JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8')).pageUrl || ''; } catch { return ''; } })();
 const RTL_HOST = process.env.RTL_HOST || cfg.host || '193.24.208.6';
 const RTL_PORT = +(process.env.RTL_PORT || cfg.port || 1234);
 const PORT = +(process.env.PORT || 8080);
@@ -57,6 +58,10 @@ server.on('upgrade', (req, socket) => {
 
   const rtl = net.connect(RTL_PORT, RTL_HOST);
   rtl.setNoDelay(true);
+  rtl.setTimeout(8000);                                    // give up if rtl_tcp doesn't answer
+  const tell = msg => { try { socket.write(frame(1, Buffer.from(JSON.stringify({ error: msg })))); } catch {} };
+  rtl.on('connect', () => { rtl.setTimeout(0); console.log('rtl_tcp connected'); });
+  rtl.on('timeout', () => { console.error('rtl_tcp: no answer'); tell(`rtl_tcp ${RTL_HOST}:${RTL_PORT} not answering`); close(); });
   let closed = false, first = true, left = null, buf = Buffer.alloc(0);
   const close = () => { if (closed) return; closed = true; try { socket.end(frame(8, Buffer.alloc(0))); } catch {} socket.destroy(); rtl.destroy(); console.log('client disconnected'); };
 
@@ -67,7 +72,7 @@ server.on('upgrade', (req, socket) => {
     if (d.length & 1) { left = d.subarray(d.length - 1); d = d.subarray(0, d.length - 1); }
     if (d.length && !closed && socket.writableLength < 2e6) socket.write(frame(2, d));
   });
-  rtl.on('error', e => { console.error('rtl_tcp error:', e.message); close(); });
+  rtl.on('error', e => { console.error('rtl_tcp error:', e.message); tell('rtl_tcp ' + (e.code || e.message)); close(); });
   rtl.on('close', close);
 
   /* browser -> rtl_tcp (5-byte commands) */
@@ -99,7 +104,9 @@ function publish(link) {
   if (link === lastLink) return;
   lastLink = link;
   fs.writeFileSync(path.join(__dirname, 'server.json'), JSON.stringify({ url: link }, null, 2) + '\n');
-  console.log('\n  tunnel link: ' + link + '\n  written to server.json\n');
+  console.log('\n  tunnel link: ' + link + '\n  written to server.json');
+  if (PAGE_URL) console.log('  open now:    ' + PAGE_URL.replace(/\/?$/, '/') + '?server=' + encodeURIComponent(link));
+  console.log('');
   if (args.includes('--push')) {
     const git = a => new Promise(r => execFile('git', a, { cwd: __dirname }, (e, o, s) => r(e ? (s || e.message).trim() : '')));
     (async () => {
