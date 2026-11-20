@@ -1,3 +1,3 @@
 {
-  "url": "https://achievement-frequently-electricity-views.trycloudflare.com"
+  "url": "https://acute-salt-physics-modern.trycloudflare.com"
 }
