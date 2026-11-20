@@ -1,3 +1,3 @@
 {
-  "url": "https://acute-salt-physics-modern.trycloudflare.com"
+  "url": "https://shoppers-legislature-eleven-zone.trycloudflare.com"
 }
