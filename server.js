@@ -1,3 +1,3 @@
 {
-  "url": "wss://shoppers-legislature-eleven-zone.trycloudflare.com"
+  "wsUrl": "wss://shoppers-legislature-eleven-zone.trycloudflare.com"
 }
