@@ -114,7 +114,8 @@ select#band-sel{width:96px}select#ext{width:112px}
 const DEFAULTS={"title":"0–30 MHz Receiver","receiver":{"name":"SimTX SDR","location":"Budapest, Hungary","antenna":"EFHW 49:1"},"maxKHz":30000,"startFreqKHz":4612,"startMode":"usb","volume":0.7,"agc":true,"wfMinDb":-125,"wfMaxDb":-65,"wfIntervalMs":45,"colormap":["#000000", "#0000FF", "#00FFFF", "#00FF00", "#FFFF00", "#FF0000", "#FF00FF", "#FFFFFF"],"user":{"name":"mike","sessionSeconds":1800},"passbands":{"am":[-4.5,4.5],"sam":[-4.5,4.5],"drm":[-5,5],"lsb":[-2.7,0],"usb":[0,2.7],"cw":[-0.25,0.25],"nbfm":[-6,6],"iq":[-5,5]},"bands":[["LW 153–279",216],["MW 531–1602",1000],["120m 2300–2495",2400],["90m 3200–3400",3300],["75m 3900–4000",3950],["60m 4750–5060",4900],["49m 5900–6200",6000],["40m 7000–7200",7100],["31m 9400–9900",9600],["25m 11600–12100",11800],["20m 14000–14350",14100],["19m 15100–15800",15400],["17m 18068–18168",18100],["15m 21000–21450",21100],["13m 21450–21850",21600],["10m 28000–29700",28300]],"seed":7,"randomStations":90,"stations":[{"f":4609.7,"p":-62,"t":"c"},{"f":4612,"p":-62,"t":"c"},{"f":4614.2,"p":-62,"t":"c"},{"f":4635.5,"p":-70,"t":"d"}],"source":{"type":"rtltcp","host":"193.24.208.6","port":1240,"wsUrl":"auto","wsPath":"/rtl","sampleRate":250000,"directSampling":2,"upconverterKHz":0,"ppm":0,"fftSize":4096,"dbOffset":-40}};
 const isObj=x=>x&&typeof x==='object'&&!Array.isArray(x);
 const merge=(a,b)=>{const o={...a};for(const k in b)o[k]=isObj(a[k])&&isObj(b[k])?merge(a[k],b[k]):b[k];return o};
-async function linkBase(){ /* tunnel link from server.json, else the server that served this page (bridge) */
+async function linkBase(){ /* ?server=… in the address > server.json > the server that served this page (bridge) */
+ const q=new URLSearchParams(location.search).get('server');if(q&&/^https?:\/\/[^\s/]+/i.test(q))return q.trim().replace(/\/+$/,'');
  try{const r=await fetch('server.json?_='+Date.now(),{cache:'no-store'});
   if(r.ok){const j=await r.json(),u=String(j.url||'').trim().replace(/\/+$/,'');if(/^https?:\/\/[^\s/]+/i.test(u)&&!/YOUR-TUNNEL/i.test(u))return u}}catch(e){}
  return /^https?:$/.test(location.protocol)?location.origin:'http://localhost:8080'} /* opened from disk (file://): use the local bridge */
@@ -275,13 +276,15 @@ async function connect(){
  let url=SRC.wsUrl&&SRC.wsUrl!=='auto'?SRC.wsUrl:'';
  if(!url){const base=await linkBase();
   if(!base){setStatus('no server link: put your tunnel URL in server.json');setTimeout(connect,10000);return}
+  try{await fetch(base+'/config.json?_='+Date.now(),{cache:'no-store'})}
+  catch(e){setStatus('tunnel not reachable: is node bridge.js running? is server.json the newest link?');setTimeout(connect,8000);return}
   url=base.replace(/^http/i,'ws')+(SRC.wsPath||'/rtl')}
- setStatus('connecting…');
+ setStatus('connecting…');LASTERR='';
  try{ws=new WebSocket(url)}catch(e){setStatus('bad WebSocket URL');setTimeout(connect,10000);return}
  ws.binaryType='arraybuffer';
  ws.onopen=()=>{setStatus('connected');cmd(2,SR);cmd(9,SRC.directSampling??2);cmd(3,0);cmd(8,1);cmd(5,SRC.ppm||0);hwTune();if(C.autoAudio!==false&&!S.userPaused)setPlay(true)};
- ws.onmessage=e=>{let u=new Uint8Array(e.data);if(!got){got=true;if(u.length>=12&&u[0]===82&&u[1]===84&&u[2]===76&&u[3]===48)u=u.subarray(12)}BYTES+=u.length;onIQ(u)};
- ws.onclose=()=>{setStatus('disconnected, retrying…');setTimeout(connect,3000)};
+ ws.onmessage=e=>{if(typeof e.data==='string'){try{const m=JSON.parse(e.data);if(m.error){LASTERR=m.error;setStatus('bridge says: '+m.error)}}catch(_){}return}let u=new Uint8Array(e.data);if(!got){got=true;if(u.length>=12&&u[0]===82&&u[1]===84&&u[2]===76&&u[3]===48)u=u.subarray(12)}BYTES+=u.length;onIQ(u)};
+ ws.onclose=()=>{setStatus('disconnected'+(LASTERR?' ('+LASTERR+')':'')+', retrying…');setTimeout(connect,LASTERR?6000:3000)};
  ws.onerror=()=>ws.close()}
 function retune(){if(!LIVE)return;
  if(S.f<hc-FULL/2*.85||S.f>hc+FULL/2*.85){hc=Math.max(FULL/2,Math.min(MAXK-FULL/2,S.f+FULL/4));hwTune();S.cf=S.f;SP.fill(-150)}}
@@ -330,7 +333,7 @@ function startLive(){
  sp.connect(mg);mg.connect(ac.destination);nodes={mg,sp};dspSetup();audioUpdate()}
 
 /* receiver info, wheel zoom, arrow keys */
-const HDR=64,R=C.receiver||{};let USER=C.user.name,BYTES=0,lastB=0;
+const HDR=64,R=C.receiver||{};let USER=C.user.name,BYTES=0,lastB=0,LASTERR='';
 $('rxName').textContent=R.name||'';$('rxLoc').textContent=R.location||'';$('rxAnt').textContent=R.antenna?'Antenna: '+R.antenna:'';
 if(R.name)document.title=R.name;
 $('who').value=USER.toUpperCase();$('who').oninput=e=>{USER=e.target.value||'anon';userList()};
@@ -340,7 +343,7 @@ addEventListener('keydown',e=>{const t=e.target.tagName;if(t==='INPUT'||t==='SEL
  const k={ArrowLeft:-1,ArrowDown:-1,ArrowRight:1,ArrowUp:1}[e.key];if(!k)return;e.preventDefault();
  setF(Math.round((S.f+k*(e.shiftKey?1:.1))*100)/100,true)});
 setInterval(()=>{if(!LIVE||STATUS!=='connected')return;const kb=Math.round((BYTES-lastB)/1024);lastB=BYTES;
- $('tip').textContent='RTL-TCP · connected · '+kb+' kB/s · '+(ac&&ac.state==='suspended'&&S.audio?'audio waiting: click the page':'audio '+(ac?ac.state:'off'))},1000);
+ $('tip').textContent='RTL-TCP · connected · '+(kb?kb+' kB/s':'no data from rtl_tcp yet')+' · '+(ac&&ac.state==='suspended'&&S.audio?'audio waiting: click the page':'audio '+(ac?ac.state:'off'))},1000);
 
 /* interactions */
 function fAt(x){const{s,span}=view();return s+x/W*span}
